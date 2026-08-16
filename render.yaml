@@ -1,0 +1,9 @@
+# Render 部署配置（免费）：导入 GitHub 仓库后自动识别此文件
+services:
+  - type: web
+    name: tangwu
+    runtime: node
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "node server.js"
+    healthCheckPath: /

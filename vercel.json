@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "rewrites": [
+    { "source": "/", "destination": "/public/index.html" },
+    { "source": "/style.css", "destination": "/public/style.css" },
+    { "source": "/app.js", "destination": "/public/app.js" },
+    { "source": "/rules.html", "destination": "/public/rules.html" },
+    { "source": "/favicon.ico", "destination": "/public/favicon.ico" }
+  ]
+}
