@@ -11,7 +11,7 @@ let aiTimer = null;
 let toastTimer = null;
 
 // 线上联机地址（改成你的在线版网址；留空则隐藏"线上联机"按钮）
-const ONLINE_URL = '';
+const ONLINE_URL = 'https://tang5.vercel.app/';
 
 function toast(msg) {
   const t = $('#toast');
