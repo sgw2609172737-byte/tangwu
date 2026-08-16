@@ -235,4 +235,6 @@ const SKILLS = {
   ],
 };
 
-module.exports = { SKILLS, positiveBuffs, solve24 };
+const __skillsExport = { SKILLS, positiveBuffs, solve24 };
+if (typeof module !== 'undefined' && module.exports) module.exports = __skillsExport;
+if (typeof window !== 'undefined') window.__TW_skills = __skillsExport;

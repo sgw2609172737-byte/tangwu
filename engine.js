@@ -1,6 +1,6 @@
 'use strict';
 // 《唐五》游戏引擎：回合流程、伤害管线、buff、胜负判定（纯逻辑，无网络依赖）
-const { SKILLS, positiveBuffs } = require('./skills');
+const { SKILLS: __SKILLS, positiveBuffs: __positiveBuffs } = (typeof window !== 'undefined' && window.__TW_skills) ? window.__TW_skills : require('./skills');
 
 const CAP_E = 11;          // 费用上限
 const MAX_ACTIONS = 50;    // 每回合行动次数上限（含再次行动）
@@ -255,7 +255,7 @@ function addHand(g, choice) {
 function actSkill(g, skillIdx, opts = {}) {
   if (g.over || g.step !== 'awaitAction') return { err: '现在不能释放技能' };
   const p = cur(g), o = opp(g);
-  const list = SKILLS[p.skill];
+  const list = __SKILLS[p.skill];
   const sk = list && list[skillIdx];
   if (!sk) return { err: '技能不存在' };
   if (p.energy < p.skill) return { err: '费用不足' };
@@ -333,8 +333,8 @@ function buffList(p) {
 
 function publicState(g, youIdx) {
   const catalog = {};
-  for (const d of Object.keys(SKILLS)) {
-    catalog[d] = SKILLS[d].map((s) => ({ id: s.id, name: s.name, desc: s.desc, star: !!s.star, isDigit: !!s.isDigit, isAttack: !!s.isAttack }));
+  for (const d of Object.keys(__SKILLS)) {
+    catalog[d] = __SKILLS[d].map((s) => ({ id: s.id, name: s.name, desc: s.desc, star: !!s.star, isDigit: !!s.isDigit, isAttack: !!s.isAttack }));
   }
   return {
     you: youIdx,
@@ -351,7 +351,7 @@ function publicState(g, youIdx) {
     players: g.players.map((p) => ({
       name: p.name, hp: p.hp, energy: p.energy, skill: p.skill, shownE: p.energy % 10,
       buffs: buffList(p),
-      positiveBuffs: positiveBuffs(p).map((b) => ({ key: b.key, name: b.name })),
+      positiveBuffs: __positiveBuffs(p).map((b) => ({ key: b.key, name: b.name })),
     })),
     log: g.log.slice(),
     catalog,
@@ -368,4 +368,6 @@ function deserializeGame(json) {
   return g;
 }
 
-module.exports = { createGame, startGame, addHand, actSkill, passTurn, publicState, serializeGame, deserializeGame, SKILLS };
+const __engineExport = { createGame, startGame, addHand, actSkill, passTurn, publicState, serializeGame, deserializeGame, SKILLS: __SKILLS };
+if (typeof module !== 'undefined' && module.exports) module.exports = __engineExport;
+if (typeof window !== 'undefined') window.__TW_engine = __engineExport;
