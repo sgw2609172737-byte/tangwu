@@ -136,3 +136,11 @@ node test/live-poll.js     # 活体测试（轮询版，模拟新版客户端协
 - **实时同步**：SSE（Server-Sent Events）推送状态，断线自动重连、自动恢复席位；操作走 HTTP POST。
 - **权威服务器**：客户端只提交操作，所有结算在服务端完成，防作弊。
 - 端口可用环境变量修改：`PORT=9000 node server.js`。
+
+## UI 架构（v3 动漫风）
+
+- `public/ui.js` 两个导出：`handSVG(d)`（0-11 手势）与 `skillCardHTML(sk, digit, afford, attrs)`（技能卡）。
+- **手势引擎**：2D 关节链骨架（`chain` → `outline` 生成带圆尖的锥形外轮廓），深棕描边 `#47291b` + 肤色渐变平涂 + 赛璐璐阴影条 + 指节线 + 掌纹；姿势表 `POSES` 驱动（up=伸直指 / bumps=蜷握指节包 / thumb=拇指模式），7(捏合)、8(枪)、9(钩) 为定制搭建。改姿势只调 `POSES` 与 `thumbFor` 的关节角/长度。
+- **技能卡牌**：`SKILL_ART`（ui.js 内 IIFE）= 40 个技能各自的 SVG 插画（徽章图元库 `P.*` + 辉光 + 光束 + 粒子，`scene()` 组装），8 类主题色由 CSS `.theme-*` 提供。★技能自动带金星角标。
+- **验收工具**：`node tools/gen-preview.js` 生成 `public/preview.html`（全部手势 + 模拟对局界面 + 40 张卡牌）；`public/debug-hands.html` 为手势放大调试页（本地用，不打包）。
+- 手势底座：`.hand-box::before` 圆盘（能量手蓝 / 技能手紫），无文字标注。

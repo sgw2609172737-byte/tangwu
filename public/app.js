@@ -9,7 +9,6 @@ let pollTimer = null;
 let toastTimer = null;
 
 function save() { localStorage.setItem('tangwu_v1', JSON.stringify(me)); }
-function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
 async function api(path, body) {
   const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -86,31 +85,6 @@ function doLeave() {
   render();
 }
 
-// ---------- 手势 SVG ----------
-function handSVG(d) {
-  const G = { 1: ['i'], 2: ['i', 'm'], 3: ['i', 'm', 'r'], 4: ['i', 'm', 'r', 'p'], 5: ['i', 'm', 'r', 'p', 't'], 6: ['t', 'p'], 7: ['i', 'm', 'r'], 8: ['t', 'i'], 9: ['i'], 10: [], 11: ['i', 'p'] }[d] || [];
-  const solid = d === 10;
-  const fingers = [
-    { id: 't', x: 26, ang: -26 },
-    { id: 'i', x: 39, ang: 0 },
-    { id: 'm', x: 50, ang: 0 },
-    { id: 'r', x: 61, ang: 0 },
-    { id: 'p', x: 72, ang: 0 },
-  ];
-  let parts = '';
-  for (const f of fingers) {
-    const up = G.includes(f.id);
-    const y = up ? 14 : 46, h = up ? 40 : 12;
-    parts += `<rect x="${f.x - 5}" y="${y}" width="10" height="${h}" rx="5" fill="${up ? '#ffd9a8' : '#d8a26e'}" stroke="#8a5a2b" stroke-width="1.5" transform="rotate(${f.ang} ${f.x} ${y + 6})"/>`;
-  }
-  const label = { 0: '0·空心拳', 1: '1', 2: '2', 3: '3', 4: '4', 5: '5', 6: '6·电话', 7: '7·捏合', 8: '8·直角', 9: '9·钩', 10: '10·实心拳', 11: '11·食小指' }[d] || d;
-  return `<svg class="hand" viewBox="0 0 100 92" role="img" aria-label="${label}">
-    ${parts}
-    <ellipse cx="50" cy="78" rx="34" ry="16" fill="${solid ? '#e8a060' : '#ffd9a8'}" stroke="#8a5a2b" stroke-width="1.5"/>
-    <text x="50" y="91" text-anchor="middle" class="hand-txt">${label}</text>
-  </svg>`;
-}
-
 // ---------- 渲染 ----------
 function render() {
   $('#btn-leave').classList.toggle('hidden', !me.token);
@@ -143,18 +117,26 @@ function hpWidth(hp) { return Math.max(0, Math.min(100, (hp / 30) * 100)); }
 function renderPlayerCard(el, p, label, active) {
   el.classList.toggle('active', active);
   const isCtrl = state.controller >= 0 && state.players.indexOf(p) === state.controller;
+  const hpPct = hpWidth(p.hp);
+  const hpClass = p.hp > 15 ? 'good' : (p.hp > 7 ? 'mid' : 'low');
   el.innerHTML = `
     <div class="p-head">
       <span class="p-name">${esc(label)} · ${esc(p.name)}${isCtrl ? ' 🧠' : ''}</span>
+      <span class="energy-badge" title="实际能量">⚡ ${p.energy}</span>
     </div>
     <div class="hp-row">
-      <span class="hp-label">HP</span>
-      <div class="hp-bar"><div class="hp-fill" style="width:${hpWidth(p.hp)}%"></div></div>
+      <div class="hp-bar"><div class="hp-fill ${hpClass}" style="width:${hpPct}%"></div></div>
       <span class="hp-num">${p.hp}</span>
     </div>
     <div class="hands">
-      <div class="hand-box"><div class="hand-label">能量手</div>${handSVG(p.shownE)}<div class="hand-sub">实际能量 <b>${p.energy}</b></div></div>
-      <div class="hand-box"><div class="hand-label">技能手</div>${handSVG(p.skill)}<div class="hand-sub">数字 <b>${p.skill}</b></div></div>
+      <div class="hand-box energy" title="能量手">
+        ${handSVG(p.shownE)}
+        <div class="hand-digit energy">${p.shownE}</div>
+      </div>
+      <div class="hand-box skill" title="技能手">
+        ${handSVG(p.skill)}
+        <div class="hand-digit skill">${p.skill}</div>
+      </div>
     </div>
     <div class="buffs">${p.buffs.map((b) => `<span class="buff" data-key="${b.key}" title="${esc(b.detail)}">${esc(b.name)}${b.detail ? '·' + esc(b.detail) : ''}</span>`).join('')}</div>
   `;
@@ -182,6 +164,7 @@ function renderGame() {
     b = '⏳ 等待对方操作…';
   }
   $('#turn-banner').textContent = b;
+  $('#turn-banner').classList.toggle('myturn', !state.over && (state.turn === myIdx || state.controller === myIdx));
   renderControls(actor);
   renderLog();
   renderResult();
@@ -206,10 +189,10 @@ function renderControls(actor) {
   }
   if (canAdd) {
     el.innerHTML = `
-      <div class="prompt">👉 技能手必须与对方一只手相加（取和的个位）。选择：</div>
+      <div class="prompt">👉 技能手与对方一只手相加（取个位），选一个数字：</div>
       <div class="add-btns">
-        <button class="big-btn" data-add="0">➕ 加对方能量手 <b>${oppOfActor.shownE}</b></button>
-        <button class="big-btn" data-add="1">➕ 加对方技能手 <b>${oppOfActor.skill}</b></button>
+        <button class="add-num" data-add="0">${oppOfActor.shownE}</button>
+        <button class="add-num" data-add="1">${oppOfActor.skill}</button>
       </div>`;
     el.querySelectorAll('[data-add]').forEach((btn) => { btn.onclick = () => send({ type: 'add', choice: Number(btn.dataset.add) }); });
     return;
@@ -218,15 +201,10 @@ function renderControls(actor) {
   const digit = actorP.skill;
   const afford = actorP.energy >= digit;
   const skills = state.catalog[digit] || [];
-  let html = `<div class="prompt">技能手 = <b>${digit}</b>，消耗 <b>${digit}</b> 能量（当前能量 ${actorP.energy}）${state.chainCount >= 3 ? `，数字连携 <b>${state.chainCount}</b> 次！` : ''}</div>`;
+  let html = `<div class="prompt">技能手 = <b>${digit}</b>，费用 <b>${digit}</b> 能量（当前 ${actorP.energy}）${state.chainCount >= 3 ? `，数字连携 <b>${state.chainCount}</b> 次！` : ''}</div>`;
   html += '<div class="skill-grid">';
   skills.forEach((sk, i) => {
-    html += `<button class="skill-card ${afford ? '' : 'disabled'}" data-skill="${i}" ${afford ? '' : 'disabled'}>
-      <div class="sk-name">${sk.star ? '★' : ''}${esc(sk.name)}</div>
-      <div class="sk-desc">${esc(sk.desc)}</div>
-      <div class="sk-cost">费用 ${digit}</div>
-      ${sk.isDigit ? '<div class="sk-tag">数字</div>' : ''}
-    </button>`;
+    html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`);
   });
   html += `</div><button id="btn-pass" class="pass-btn">空过（结束回合）</button>`;
   el.innerHTML = html;
@@ -268,7 +246,14 @@ function chooseSkill(skillIdx, actor) {
 function renderLog() {
   const el = $('#log');
   const items = state.log.slice(-150);
-  el.innerHTML = items.map((t) => `<div class="log-line">${esc(t)}</div>`).join('');
+  el.innerHTML = items.map((t) => {
+    let cls = '';
+    if (/伤害|秒杀|击败|败北|清零|倒下/.test(t)) cls = 'dmg';
+    else if (/回复|加血|\+\d+血|治疗/.test(t)) cls = 'heal';
+    else if (/能量/.test(t)) cls = 'nrg';
+    else if (/生效|就绪|召唤|控制|冰封|剧毒|中毒|强化|互换/.test(t)) cls = 'sys';
+    return `<div class="log-line ${cls}">${esc(t)}</div>`;
+  }).join('');
   el.scrollTop = el.scrollHeight;
 }
 
@@ -305,7 +290,6 @@ $('#code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJ
   const params = new URLSearchParams(location.search);
   const roomFromUrl = (params.get('room') || '').trim().toUpperCase();
   const nameFromUrl = (params.get('name') || '').trim().slice(0, 12);
-  // 已有会话：目标房间一致（或无目标）→ 重连恢复；否则清空会话
   if (me.token && me.roomCode) {
     if (!roomFromUrl || me.roomCode === roomFromUrl) {
       try {
@@ -318,7 +302,6 @@ $('#code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJ
     save();
   }
   if (roomFromUrl) {
-    // 一键加入：无需输入昵称、无需点击任何按钮
     const name = nameFromUrl || me.name || ('玩家' + Math.random().toString(36).slice(2, 6).toUpperCase());
     try {
       const d = await api('/api/hello', { name, roomCode: roomFromUrl });
