@@ -62,7 +62,7 @@ function positiveBuffs(p) {
   if (p.wudi) list.push({ key: 'wudi', name: '无敌' });
   if (p.yingneng.active) list.push({ key: 'yingneng', name: '盈能' });
   if (p.shuangbei > 0) list.push({ key: 'shuangbei', name: '双倍圣水' });
-  if (p.huxi) list.push({ key: 'huxi', name: '呼吸回血' });
+  if (p.huxi > 0) list.push({ key: 'huxi', name: '呼吸回血' });
   if (p.qianghua) list.push({ key: 'qianghua', name: '强化' });
   if (p.bishi) list.push({ key: 'bishi', name: '鄙视' });
   if (p.cuidu) list.push({ key: 'cuidu', name: '淬毒' });
@@ -153,7 +153,7 @@ const SKILLS = {
           case 'wudi': c.o.wudi = false; break;
           case 'yingneng': c.o.yingneng.active = false; break;
           case 'shuangbei': c.o.shuangbei = 0; break;
-          case 'huxi': c.o.huxi = false; break;
+          case 'huxi': c.o.huxi = 0; break;
           case 'qianghua': c.o.qianghua = false; break;
           case 'bishi': c.o.bishi = false; break;
           case 'cuidu': c.o.cuidu = false; break;
@@ -164,8 +164,8 @@ const SKILLS = {
   '8': [
     { id: 'ba', name: '八', desc: '数字技能：+8$，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
       run(c) { c.gain(8); } },
-    { id: 'huxi', name: '呼吸回血', desc: '此后你每回合+1血', star: false, isAttack: false, isDigit: false,
-      run(c) { c.p.huxi = true; c.log('呼吸回血生效'); } },
+    { id: 'huxi', name: '呼吸回血', desc: '此后你每回合+1血（可叠加）', star: false, isAttack: false, isDigit: false,
+      run(c) { c.p.huxi = (c.p.huxi || 0) + 1; c.log(`呼吸回血生效（每回合+${c.p.huxi}血）`); } },
     { id: 'jijiu', name: '急救箱', desc: '回复10点生命（受强化影响：+12）', star: true, isAttack: false, isDigit: false,
       run(c) { c.healSelf(10 + (c.p.qianghua ? 2 : 0)); } },
     { id: 'duming', name: '赌命！', desc: '+4$、+6血并再次行动；6个你的回合（含释放回合）内未分胜负 → 血量清零直接败北（无视假人）；期间：每段伤害+3、攻击技能后+1$、瞬时伤害≥9可再次行动（整局限一次）', star: false, isAttack: false, isDigit: false, grantsAgain: true,
