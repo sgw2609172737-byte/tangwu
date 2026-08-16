@@ -2,7 +2,7 @@
 // 《唐五》游戏引擎：回合流程、伤害管线、buff、胜负判定（纯逻辑，无网络依赖）
 const { SKILLS, positiveBuffs } = require('./skills');
 
-const CAP_E = 11;          // 能量上限
+const CAP_E = 11;          // 费用上限
 const MAX_ACTIONS = 50;    // 每回合行动次数上限（含再次行动）
 
 // ---------- 基础工具 ----------
@@ -157,22 +157,22 @@ function startTurn(g) {
   // 鄙视：对方回合前，若其技能手数字更大
   if (o.bishi && o.skill > p.skill) {
     gain(g, o, 1); loseE(g, p, 1);
-    log(g, `👁 鄙视触发：${o.name} +1能量，${p.name} -1能量`);
+    log(g, `👁 鄙视触发：${o.name} +1$，${p.name} -1$`);
   }
   // 尤里：本回合决策者
   g.controller = p.controlledBy >= 0 ? p.controlledBy : -1;
   p.controlledBy = -1;
-  // 冰封：只能+1能量
+  // 冰封：只能+1费用
   if (p.freeze > 0) {
     p.freeze--;
     gain(g, p, 1);
-    log(g, `❄ ${p.name} 被冰封，本回合只能获得1点能量（剩余${p.freeze}回合）`);
+    log(g, `❄ ${p.name} 被冰封，本回合只能获得1点费用（剩余${p.freeze}回合）`);
     endTurn(g);
     return;
   }
   // 正常回合开始
   gain(g, p, 1);
-  if (p.shuangbei) { gain(g, p, 1); log(g, `💧 双倍圣水：${p.name} 额外+1能量`); }
+  if (p.shuangbei) { gain(g, p, 1); log(g, `💧 双倍圣水：${p.name} 额外+1$`); }
   if (p.huxi) { heal(g, p, 1); log(g, `💚 呼吸回血：${p.name} +1血`); }
   // 延迟伤害触发：对方身上、由我造成的延迟伤害（小烈焰/淬毒），在我的回合开始时自动结算
   const pend = o.delayed.filter((d) => d.owner === idx(g, p));
@@ -248,7 +248,7 @@ function addHand(g, choice) {
   const old = p.skill;
   p.skill = (p.skill + shown) % 10;
   g.step = 'awaitAction';
-  log(g, `✋ ${p.name} 技能手与对方${choice === 0 ? '能量手' : '技能手'}（${shown}）相加：${old} → ${p.skill}`);
+  log(g, `✋ ${p.name} 技能手与对方${choice === 0 ? '费用手' : '技能手'}（${shown}）相加：${old} → ${p.skill}`);
   return { ok: true };
 }
 
@@ -258,10 +258,10 @@ function actSkill(g, skillIdx, opts = {}) {
   const list = SKILLS[p.skill];
   const sk = list && list[skillIdx];
   if (!sk) return { err: '技能不存在' };
-  if (p.energy < p.skill) return { err: '能量不足' };
+  if (p.energy < p.skill) return { err: '费用不足' };
   p.energy -= p.skill;
   g.actionsUsed++;
-  log(g, `🎯 ${p.name} 释放了【${sk.name}】（消耗 ${p.skill} 能量）`);
+  log(g, `🎯 ${p.name} 释放了【${sk.name}】（消耗 ${p.skill}$）`);
   const ctx = {
     g, p, o, pIdx: idx(g, p), skill: sk, opts: opts || {},
     log: (m) => log(g, m),
@@ -272,10 +272,10 @@ function actSkill(g, skillIdx, opts = {}) {
   };
   sk.run(ctx);
   if (g.over) return { ok: true };
-  // 赌命：使用攻击技能后 +1 能量
+  // 赌命：使用攻击技能后 +1 费用
   if (p.duming.active && sk.isAttack) {
     gain(g, p, 1);
-    log(g, `☠ 赌命：攻击技能后 +1能量`);
+    log(g, `☠ 赌命：攻击技能后 +1$`);
   }
   // 淬毒：攻击技能给目标附加"下回合1毒伤"（每放一次攻击技能挂一层）
   if (p.cuidu && sk.isAttack) {
@@ -313,10 +313,10 @@ function buffList(p) {
   if (p.jingji) out.push({ key: 'jingji', name: '荆棘', detail: '反弹一次伤害' });
   if (p.wudi) out.push({ key: 'wudi', name: '无敌', detail: '抵挡一次攻击+2血' });
   if (p.yingneng.active) out.push({ key: 'yingneng', name: '盈能', detail: `闲置${p.yingneng.idle}回合` });
-  if (p.shuangbei) out.push({ key: 'shuangbei', name: '双倍圣水', detail: '每回合额外+1能量' });
+  if (p.shuangbei) out.push({ key: 'shuangbei', name: '双倍圣水', detail: '每回合额外+1$' });
   if (p.huxi) out.push({ key: 'huxi', name: '呼吸回血', detail: '每回合+1血' });
   if (p.qianghua) out.push({ key: 'qianghua', name: '强化', detail: '*技能加血+2' });
-  if (p.bishi) out.push({ key: 'bishi', name: '鄙视', detail: '被动偷能量' });
+  if (p.bishi) out.push({ key: 'bishi', name: '鄙视', detail: '被动偷费用' });
   if (p.tanghua) out.push({ key: 'tanghua', name: '假人唐化', detail: '假人可无限召唤' });
   if (p.cuidu) out.push({ key: 'cuidu', name: '淬毒', detail: '攻击附带1毒伤' });
   if (p.dummy.alive) out.push({ key: 'dummy', name: '假人', detail: `${p.dummy.hp}血` });

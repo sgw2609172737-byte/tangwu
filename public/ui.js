@@ -536,7 +536,7 @@ function skillCardHTML(sk, digit, afford, attrs = '') {
     <div class="card-art">${art.svg}</div>
     <div class="card-name">${esc(sk.name)}</div>
     <div class="card-desc">${esc(sk.desc)}</div>
-    <div class="card-cost">⚡${digit}</div>
+    <div class="card-cost">${digit}$</div>
     ${sk.star ? '<div class="card-star">★</div>' : ''}
     ${sk.isDigit ? '<div class="card-tag">数字</div>' : ''}
   </button>`;

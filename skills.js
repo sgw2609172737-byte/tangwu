@@ -71,7 +71,7 @@ function positiveBuffs(p) {
 
 const SKILLS = {
   '1': [
-    { id: 'xiao', name: '笑', desc: '获得2点能量', star: false, isAttack: false, isDigit: false,
+    { id: 'xiao', name: '笑', desc: '获得2点费用', star: false, isAttack: false, isDigit: false,
       run(c) { c.gain(2); } },
     { id: 'quan', name: '拳', desc: '对对方造成2点伤害', star: false, isAttack: true, isDigit: false,
       run(c) { c.dmg(c.o, 2); } },
@@ -81,7 +81,7 @@ const SKILLS = {
       run(c) { c.healSelf(1 + (c.p.qianghua ? 2 : 0)); } },
   ],
   '2': [
-    { id: 'huanwu', name: '幻雾', desc: '+1能量；对方下回合跳过技能手相加', star: false, isAttack: false, isDigit: false,
+    { id: 'huanwu', name: '幻雾', desc: '+1$；对方下回合跳过技能手相加', star: false, isAttack: false, isDigit: false,
       run(c) { c.gain(1); c.o.huanwuSkip = true; c.log('幻雾：对方下回合无法与你的手相加'); } },
     { id: 'huifu', name: '回复术士', desc: '回复2点生命（受强化影响：+4）', star: true, isAttack: false, isDigit: false,
       run(c) { c.healSelf(2 + (c.p.qianghua ? 2 : 0)); } },
@@ -93,39 +93,39 @@ const SKILLS = {
   '3': [
     { id: 'xiaolieyan', name: '小烈焰', desc: '立即3伤；你下回合开始时再自动造成2伤（可被净化）', star: false, isAttack: true, isDigit: false,
       run(c) { c.dmg(c.o, 3); c.o.delayed.push({ owner: c.pIdx, dmg: 2, desc: '小烈焰', noBonus: true }); } },
-    { id: 'san', name: '三', desc: '数字技能：+2能量，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
+    { id: 'san', name: '三', desc: '数字技能：+2$，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
       run(c) { c.gain(2); } },
-    { id: 'hanfeng', name: '寒风', desc: '3伤并使对方能量-1', star: false, isAttack: true, isDigit: false,
-      run(c) { if (c.dmg(c.o, 3)) { const e = c.o.energy; c.o.energy = Math.max(0, e - 1); c.log(`寒风：对方能量 ${e} → ${c.o.energy}`); } } },
+    { id: 'hanfeng', name: '寒风', desc: '3伤并使对方-1$', star: false, isAttack: true, isDigit: false,
+      run(c) { if (c.dmg(c.o, 3)) { const e = c.o.energy; c.o.energy = Math.max(0, e - 1); c.log(`寒风：对方费用 ${e}$ → ${c.o.energy}$`); } } },
     { id: 'tanghua', name: '假人唐化', desc: '永久：可无限次使用【假人】（同时最多1个）', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.tanghua = true; c.log('假人唐化生效：可无限召唤假人'); } },
   ],
   '4': [
-    { id: 'xiaoxiaotou', name: '小小偷', desc: '对方能量-4（最低0）并造成1伤', star: false, isAttack: true, isDigit: false,
-      run(c) { const e = c.o.energy; if (c.dmg(c.o, 1)) { c.o.energy = Math.max(0, e - 4); c.log(`小小偷：对方能量 ${e} → ${c.o.energy}`); } } },
+    { id: 'xiaoxiaotou', name: '小小偷', desc: '对方-4$（最低0）并造成1伤', star: false, isAttack: true, isDigit: false,
+      run(c) { const e = c.o.energy; if (c.dmg(c.o, 1)) { c.o.energy = Math.max(0, e - 4); c.log(`小小偷：对方费用 ${e}$ → ${c.o.energy}$`); } } },
     { id: 'dian24', name: '24点', desc: '四手数字各用一次、加减乘除算出24 → +5血（强化+7）；算不出则空放', star: true, isAttack: false, isDigit: false,
       run(c) {
         const digs = [c.p.energy % 10, c.p.skill, c.o.energy % 10, c.o.skill];
         if (solve24(digs)) { const v = 5 + (c.p.qianghua ? 2 : 0); c.healSelf(v); c.log(`24点成功！${digs.join(' ')} 可算出24，+${v}血`); }
         else c.log(`24点失败，空放（${digs.join(' ')} 无法算出24）`);
       } },
-    { id: 'yizhanyangzhan', name: '以战养战', desc: '按本局累计伤害n结算：n≥5/10/15各+2能量（最多+6）', star: false, isAttack: false, isDigit: false,
-      run(c) { const n = c.p.cumulativeDmg; const t = Math.min(3, Math.floor(n / 5)); c.gain(2 * t); c.log(`以战养战：累计${n}伤 → +${2 * t}能量`); } },
-    { id: 'si', name: '四', desc: '数字技能：+3能量，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
+    { id: 'yizhanyangzhan', name: '以战养战', desc: '按本局累计伤害n结算：n≥5/10/15各+2$（最多+6）', star: false, isAttack: false, isDigit: false,
+      run(c) { const n = c.p.cumulativeDmg; const t = Math.min(3, Math.floor(n / 5)); c.gain(2 * t); c.log(`以战养战：累计${n}伤 → +${2 * t}$`); } },
+    { id: 'si', name: '四', desc: '数字技能：+3$，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
       run(c) { c.gain(3); } },
     { id: 'cuidu', name: '淬毒', desc: '永久：你的攻击类技能附带下回合1伤（毒伤不受增伤加成，可被净化）', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.cuidu = true; c.log('淬毒生效：攻击技能将附带延迟毒伤'); } },
   ],
   '5': [
-    { id: 'shangjin', name: '赏金', desc: '5伤，并按本回合已造成伤害n的⌈n/3⌉获得能量（含本次5伤）', star: false, isAttack: true, isDigit: false,
-      run(c) { c.dmg(c.o, 5); const n = c.p.turnDmg; c.gain(Math.ceil(n / 3)); c.log(`赏金：本回合共${n}伤 → +${Math.ceil(n / 3)}能量`); } },
-    { id: 'touzi', name: '投资', desc: '能量先+3再翻倍（封顶11）', star: false, isAttack: false, isDigit: false,
-      run(c) { c.p.energy = Math.min(11, c.p.energy + 3); c.p.energy = Math.min(11, c.p.energy * 2); c.log(`投资：能量变为 ${c.p.energy}`); } },
+    { id: 'shangjin', name: '赏金', desc: '5伤，并按本回合已造成伤害n的⌈n/3⌉获得费用（含本次5伤）', star: false, isAttack: true, isDigit: false,
+      run(c) { c.dmg(c.o, 5); const n = c.p.turnDmg; c.gain(Math.ceil(n / 3)); c.log(`赏金：本回合共${n}伤 → +${Math.ceil(n / 3)}$`); } },
+    { id: 'touzi', name: '投资', desc: '费用先+3$再翻倍（封顶11）', star: false, isAttack: false, isDigit: false,
+      run(c) { c.p.energy = Math.min(11, c.p.energy + 3); c.p.energy = Math.min(11, c.p.energy * 2); c.log(`投资：费用变为 ${c.p.energy}$`); } },
     { id: 'wudi', name: '无敌', desc: '免疫下次攻击（并+2血）及附带效果；未触发则一直保留', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.wudi = true; c.log('无敌已就绪'); } },
   ],
   '6': [
-    { id: 'yingneng', name: '盈能', desc: '+1能量；此后你每n回合未攻击（n上限6），下次伤害+n（一次性）', star: false, isAttack: false, isDigit: false,
+    { id: 'yingneng', name: '盈能', desc: '+1$；此后你每n回合未攻击（n上限6），下次伤害+n（一次性）', star: false, isAttack: false, isDigit: false,
       run(c) { c.gain(1); c.p.yingneng = { active: true, idle: 0 }; c.log('盈能生效'); } },
     { id: 'jiubaK', name: '98K', desc: '9伤；本回合若已连续使用≥3次数字技能（一/三/四/八）且至少2种 → 114514秒杀（无视无敌/荆棘/假人）', star: false, isAttack: true, isDigit: false,
       run(c) {
@@ -134,15 +134,15 @@ const SKILLS = {
       } },
     { id: 'qianghua', name: '强化', desc: '永久：所有带*技能的加血值+2', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.qianghua = true; c.log('强化生效（永久）'); } },
-    { id: 'bing', name: '冰！', desc: '+2血；对方接下来2回合无法行动（只能+1能量）', star: false, isAttack: false, isDigit: false,
+    { id: 'bing', name: '冰！', desc: '+2血；对方接下来2回合无法行动（只能+1$）', star: false, isAttack: false, isDigit: false,
       run(c) { c.healSelf(2); c.o.freeze = Math.max(c.o.freeze, 2); c.log(`冰！：${c.o.name} 被冰封2回合`); } },
   ],
   '7': [
     { id: 'qibu', name: '七步', desc: '对方每回合结束时-4血；被净化1次降为-3，第2次解除；不触发无敌、不受增伤', star: false, isAttack: false, isDigit: false,
       run(c) { c.o.qibu = { stage: 1, owner: c.pIdx }; c.log(`七步：${c.o.name} 身中剧毒`); } },
-    { id: 'shuangbei', name: '双倍圣水', desc: '此后你每回合额外+1能量', star: false, isAttack: false, isDigit: false,
+    { id: 'shuangbei', name: '双倍圣水', desc: '此后你每回合额外+1$', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.shuangbei = true; c.log('双倍圣水生效'); } },
-    { id: 'gongping', name: '公平正义', desc: '+1能量；去除对方一个正面buff（荆棘/无敌/盈能/双倍圣水/呼吸回血/强化/鄙视/淬毒）', star: false, isAttack: false, isDigit: false,
+    { id: 'gongping', name: '公平正义', desc: '+1$；去除对方一个正面buff（荆棘/无敌/盈能/双倍圣水/呼吸回血/强化/鄙视/淬毒）', star: false, isAttack: false, isDigit: false,
       run(c) {
         c.gain(1);
         const list = positiveBuffs(c.o);
@@ -162,25 +162,25 @@ const SKILLS = {
       } },
   ],
   '8': [
-    { id: 'ba', name: '八', desc: '数字技能：+8能量，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
+    { id: 'ba', name: '八', desc: '数字技能：+8$，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
       run(c) { c.gain(8); } },
     { id: 'huxi', name: '呼吸回血', desc: '此后你每回合+1血', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.huxi = true; c.log('呼吸回血生效'); } },
     { id: 'jijiu', name: '急救箱', desc: '回复10点生命（受强化影响：+12）', star: true, isAttack: false, isDigit: false,
       run(c) { c.healSelf(10 + (c.p.qianghua ? 2 : 0)); } },
-    { id: 'duming', name: '赌命！', desc: '+4能量、+6血并再次行动；6个你的回合（含释放回合）内未分胜负 → 血量清零直接败北（无视假人）；期间：每段伤害+3、攻击技能后+1能量、瞬时伤害≥9可再次行动（整局限一次）', star: false, isAttack: false, isDigit: false, grantsAgain: true,
+    { id: 'duming', name: '赌命！', desc: '+4$、+6血并再次行动；6个你的回合（含释放回合）内未分胜负 → 血量清零直接败北（无视假人）；期间：每段伤害+3、攻击技能后+1$、瞬时伤害≥9可再次行动（整局限一次）', star: false, isAttack: false, isDigit: false, grantsAgain: true,
       run(c) { c.gain(4); c.healSelf(6); c.p.duming = { active: true, turnsLeft: 6, extraUsed: false }; c.log(`赌命！${c.p.name} 进入赌命状态（6回合倒计时）`); } },
   ],
   '9': [
-    { id: 'youli', name: '尤里', desc: '+4能量；你完全控制对方下个回合', star: false, isAttack: false, isDigit: false,
+    { id: 'youli', name: '尤里', desc: '+4$；你完全控制对方下个回合', star: false, isAttack: false, isDigit: false,
       run(c) { c.gain(4); c.o.controlledBy = c.pIdx; c.log(`尤里：${c.p.name} 将控制 ${c.o.name} 的下回合`); } },
-    { id: 'yuandu', name: '元毒九泉', desc: '10伤，+3血，+2能量，对方能量-2', star: false, isAttack: true, isDigit: false,
-      run(c) { const ok = c.dmg(c.o, 10); c.healSelf(3); c.gain(2); if (ok) { const e = c.o.energy; c.o.energy = Math.max(0, e - 2); c.log(`元毒：对方能量 ${e} → ${c.o.energy}`); } } },
-    { id: 'jidao', name: '极盗', desc: '1伤；对方能量清零，你获得其原能量⌈1/3⌉', star: false, isAttack: true, isDigit: false,
-      run(c) { const e = c.o.energy; if (c.dmg(c.o, 1)) { c.o.energy = 0; c.gain(Math.ceil(e / 3)); c.log(`极盗：偷走 ${e} 能量，你获得 ${Math.ceil(e / 3)}`); } } },
-    { id: 'bishi', name: '鄙视', desc: '永久被动：每回合对方行动前，若你技能手数字>对方，你+1能量、对方-1能量', star: false, isAttack: false, isDigit: false,
+    { id: 'yuandu', name: '元毒九泉', desc: '10伤，+3血，+2$，对方-2$', star: false, isAttack: true, isDigit: false,
+      run(c) { const ok = c.dmg(c.o, 10); c.healSelf(3); c.gain(2); if (ok) { const e = c.o.energy; c.o.energy = Math.max(0, e - 2); c.log(`元毒：对方费用 ${e}$ → ${c.o.energy}$`); } } },
+    { id: 'jidao', name: '极盗', desc: '1伤；对方费用清零，你获得其原费用⌈1/3⌉', star: false, isAttack: true, isDigit: false,
+      run(c) { const e = c.o.energy; if (c.dmg(c.o, 1)) { c.o.energy = 0; c.gain(Math.ceil(e / 3)); c.log(`极盗：偷走 ${e}$ 费用，你获得 ${Math.ceil(e / 3)}$`); } } },
+    { id: 'bishi', name: '鄙视', desc: '永久被动：每回合对方行动前，若你技能手数字>对方，你+1$、对方-1$', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.bishi = true; c.log('鄙视生效（永久被动）'); } },
-    { id: 'shipo', name: '识破', desc: '+1血，+6能量；对方本体与假人血量互换，再对互换后的本体造成1伤（无假人则互换无效）', star: false, isAttack: true, isDigit: false,
+    { id: 'shipo', name: '识破', desc: '+1血，+6$；对方本体与假人血量互换，再对互换后的本体造成1伤（无假人则互换无效）', star: false, isAttack: true, isDigit: false,
       run(c) {
         c.healSelf(1); c.gain(6);
         if (c.o.wudi) { c.o.wudi = false; c.o.hp += 2; c.log('识破被无敌抵挡'); return; }
@@ -190,7 +190,7 @@ const SKILLS = {
       } },
   ],
   '0': [
-    { id: 'danxiao', name: '氮笑', desc: '+1能量', star: false, isAttack: false, isDigit: false,
+    { id: 'danxiao', name: '氮笑', desc: '+1$', star: false, isAttack: false, isDigit: false,
       run(c) { c.gain(1); } },
     { id: 'jinghua', name: '净化', desc: '+1血；解除自身所有延迟/持续伤害；七步：第1次降为-3，第2次解除', star: false, isAttack: false, isDigit: false,
       run(c) {

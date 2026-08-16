@@ -122,16 +122,16 @@ function renderPlayerCard(el, p, label, active) {
   el.innerHTML = `
     <div class="p-head">
       <span class="p-name">${esc(label)} · ${esc(p.name)}${isCtrl ? ' 🧠' : ''}</span>
-      <span class="energy-badge" title="实际能量">⚡ ${p.energy}</span>
+      <span class="energy-badge" title="实际费用">费用 ${p.energy}$</span>
     </div>
     <div class="hp-row">
       <div class="hp-bar"><div class="hp-fill ${hpClass}" style="width:${hpPct}%"></div></div>
       <span class="hp-num">${p.hp}</span>
     </div>
     <div class="hands">
-      <div class="hand-box energy" title="能量手">
+      <div class="hand-box energy" title="费用手">
         ${handSVG(p.shownE)}
-        <div class="hand-digit energy">${p.shownE}</div>
+        <div class="hand-digit energy">${p.shownE}$</div>
       </div>
       <div class="hand-box skill" title="技能手">
         ${handSVG(p.skill)}
@@ -201,7 +201,7 @@ function renderControls(actor) {
   const digit = actorP.skill;
   const afford = actorP.energy >= digit;
   const skills = state.catalog[digit] || [];
-  let html = `<div class="prompt">技能手 = <b>${digit}</b>，费用 <b>${digit}</b> 能量（当前 ${actorP.energy}）${state.chainCount >= 3 ? `，数字连携 <b>${state.chainCount}</b> 次！` : ''}</div>`;
+  let html = `<div class="prompt">技能手 = <b>${digit}</b>，费用 <b>${digit}$</b>（当前 ${actorP.energy}$）${state.chainCount >= 3 ? `，数字连携 <b>${state.chainCount}</b> 次！` : ''}</div>`;
   html += '<div class="skill-grid">';
   skills.forEach((sk, i) => {
     html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`);
@@ -250,7 +250,7 @@ function renderLog() {
     let cls = '';
     if (/伤害|秒杀|击败|败北|清零|倒下/.test(t)) cls = 'dmg';
     else if (/回复|加血|\+\d+血|治疗/.test(t)) cls = 'heal';
-    else if (/能量/.test(t)) cls = 'nrg';
+    else if (/费用/.test(t)) cls = 'nrg';
     else if (/生效|就绪|召唤|控制|冰封|剧毒|中毒|强化|互换/.test(t)) cls = 'sys';
     return `<div class="log-line ${cls}">${esc(t)}</div>`;
   }).join('');
