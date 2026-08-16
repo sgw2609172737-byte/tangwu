@@ -180,7 +180,7 @@ function renderGame() {
   if (changed) {
     gameEl.classList.add('anim');
     clearTimeout(gameEl._animT);
-    gameEl._animT = setTimeout(() => gameEl.classList.remove('anim'), 420);
+    gameEl._animT = setTimeout(() => gameEl.classList.remove('anim'), 520);
     if (window.TW_SFX) TW_SFX.whoosh();
   }
   const myIdx = me.idx;

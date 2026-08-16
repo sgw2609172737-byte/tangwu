@@ -45,7 +45,7 @@
     else if (a.type === 'pass') ENG.passTurn(g);
   }
 
-  // 评估函数：从 aiIdx 视角给局面打分（越高越好）
+  // 评估函数：从 aiIdx 视角给局面打分（越高越好）——激进型：追杀、抢伤、少囤积
   function evalGame(g, aiIdx) {
     if (g.over) {
       if (g.result === 'draw') return 0;
@@ -54,10 +54,11 @@
     const me = g.players[aiIdx], op = g.players[1 - aiIdx];
     let s = 0;
     const hpD = me.hp - op.hp;
-    s += hpD * 8;                                   // 血量差
-    if (op.hp <= 8) s += (8 - op.hp) * 8;           // 斩杀逼近：对方快死时抢伤害
-    if (me.hp <= 8) s -= (8 - me.hp) * 8;           // 自己危险
-    s += (me.energy - op.energy) * 2.5;             // 费用差
+    s += hpD * 9;                                   // 血量差（最重要）
+    if (op.hp <= 10) s += (10 - op.hp) * 10;        // 斩杀逼近：对方进斩杀线就抢
+    if (me.hp <= 10) s -= (10 - me.hp) * 10;        // 自己危险时优先保命
+    s += (me.energy - op.energy) * 1.2;             // 费用差（权重调低，避免囤积）
+    s += (me.cumulativeDmg - op.cumulativeDmg) * 1.5; // 累计伤害差（鼓励持续压制）
     if (me.dummy.alive) s += 10;                    // 假人 = 第二条命
     if (op.dummy.alive) s -= 10;
     const posOf = (p) => (p.shuangbei || 0) * 5 + (p.huxi || 0) * 6 + (p.qianghua ? 4 : 0)
@@ -70,8 +71,8 @@
     if (op.duming.active) s += 8;
     if (me.freeze > 0) s -= 10;
     if (op.freeze > 0) s += 10;
-    s += op.delayed.length * 5 - me.delayed.length * 5; // 延迟伤害
-    if (g.chainCount >= 2) s += 12;                 // 98K 连携威胁（鼓励攒连携）
+    s += op.delayed.length * 6 - me.delayed.length * 6; // 延迟伤害
+    if (g.chainCount >= 2) s += 14;                 // 98K 连携威胁（鼓励攒链）
     if (g.chainCount >= 3) s += 20;
     return s;
   }
@@ -128,7 +129,7 @@
   function hardSearch(g, aiIdx, actions, timeMs) {
     const deadline = Date.now() + timeMs;
     let best = null;
-    for (let depth = 2; depth <= 12; depth++) {
+    for (let depth = 2; depth <= 14; depth++) {
       let dBest = null, dBScore = -Infinity, ok = true;
       try {
         for (const a of ordered(g, aiIdx, actions, true)) {
@@ -155,7 +156,7 @@
       return bestByEval(g, aiIdx, actions, 1);
     }
     if (difficulty === 'normal') return bestByEval(g, aiIdx, actions, 2);
-    return hardSearch(g, aiIdx, actions, timeMs || 3000); // 困难：本地预算 3 秒，尽量加深
+    return hardSearch(g, aiIdx, actions, timeMs || 5000); // 困难：本地预算 5 秒，尽量加深
   }
 
   const __aiExport = { chooseAction, legalActions, evalGame };
