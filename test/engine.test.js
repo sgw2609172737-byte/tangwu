@@ -159,13 +159,29 @@ test('七步：-4→净化降为-3→净化解除；不触发无敌', () => {
 test('冰封：只+1能量、跳过相加与行动', () => {
   const g = mk(); const first = g.turn;
   const o = opp(g);
-  o.freeze = 2; o.huxi = true; o.shuangbei = true; o.hp = 21;
+  o.freeze = 2; o.huxi = true; o.shuangbei = 1; o.hp = 21;
   skipTurn(g); // p回合结束 → o被冰封回合自动跳过 → 回到p
   assert.strictEqual(o.energy, 3); // 2+1 only
   assert.strictEqual(o.hp, 21); // 呼吸回血不生效
   assert.strictEqual(o.freeze, 1);
   assert.strictEqual(g.turn, first);
   assert.strictEqual(g.step, 'awaitAdd');
+});
+
+test('双倍圣水：可叠加，每回合额外+N$', () => {
+  const g = mk(); const first = g.turn;
+  const p = g.players[first];
+  p.energy = 10;
+  force(g, 7); act(g, 'shuangbei'); // 费用7
+  assert.strictEqual(p.shuangbei, 1);
+  skipTurn(g); // 对方回合后回到自己
+  assert.strictEqual(p.energy, 10 - 7 + 2); // +1 基础 +1 圣水
+  p.energy = 10;
+  force(g, 7); act(g, 'shuangbei'); // 再放一次
+  assert.strictEqual(p.shuangbei, 2);
+  skipTurn(g);
+  assert.strictEqual(p.energy, 10 - 7 + 3); // +1 基础 +2 圣水
+  assert.strictEqual(p.shuangbei, 2);
 });
 
 test('赌命：6回合倒计时归零直接败北（无视假人）', () => {

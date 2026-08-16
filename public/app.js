@@ -131,7 +131,7 @@ function renderPlayerCard(el, p, label, active) {
     <div class="hands">
       <div class="hand-box energy" title="费用手">
         ${handSVG(p.shownE)}
-        <div class="hand-digit energy">${p.shownE}$</div>
+        <div class="hand-digit energy">${p.shownE}</div>
       </div>
       <div class="hand-box skill" title="技能手">
         ${handSVG(p.skill)}

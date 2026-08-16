@@ -25,7 +25,7 @@ function mkPlayer(name, hp) {
     jingji: false,                                   // 荆棘
     wudi: false,                                     // 无敌
     yingneng: { active: false, idle: 0 },            // 盈能
-    shuangbei: false,                                // 双倍圣水
+    shuangbei: 0,                                    // 双倍圣水（层数，每回合额外+N$）
     huxi: false,                                     // 呼吸回血
     qianghua: false,                                 // 强化（永久）
     bishi: false,                                    // 鄙视（永久被动）
@@ -172,7 +172,7 @@ function startTurn(g) {
   }
   // 正常回合开始
   gain(g, p, 1);
-  if (p.shuangbei) { gain(g, p, 1); log(g, `💧 双倍圣水：${p.name} 额外+1$`); }
+  if (p.shuangbei) { gain(g, p, p.shuangbei); log(g, `💧 双倍圣水：${p.name} 额外+${p.shuangbei}$`); }
   if (p.huxi) { heal(g, p, 1); log(g, `💚 呼吸回血：${p.name} +1血`); }
   // 延迟伤害触发：对方身上、由我造成的延迟伤害（小烈焰/淬毒），在我的回合开始时自动结算
   const pend = o.delayed.filter((d) => d.owner === idx(g, p));
@@ -313,7 +313,7 @@ function buffList(p) {
   if (p.jingji) out.push({ key: 'jingji', name: '荆棘', detail: '反弹一次伤害' });
   if (p.wudi) out.push({ key: 'wudi', name: '无敌', detail: '抵挡一次攻击+2血' });
   if (p.yingneng.active) out.push({ key: 'yingneng', name: '盈能', detail: `闲置${p.yingneng.idle}回合` });
-  if (p.shuangbei) out.push({ key: 'shuangbei', name: '双倍圣水', detail: '每回合额外+1$' });
+  if (p.shuangbei) out.push({ key: 'shuangbei', name: '双倍圣水', detail: `每回合额外+${p.shuangbei}$` });
   if (p.huxi) out.push({ key: 'huxi', name: '呼吸回血', detail: '每回合+1血' });
   if (p.qianghua) out.push({ key: 'qianghua', name: '强化', detail: '*技能加血+2' });
   if (p.bishi) out.push({ key: 'bishi', name: '鄙视', detail: '被动偷费用' });

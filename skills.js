@@ -61,7 +61,7 @@ function positiveBuffs(p) {
   if (p.jingji) list.push({ key: 'jingji', name: '荆棘' });
   if (p.wudi) list.push({ key: 'wudi', name: '无敌' });
   if (p.yingneng.active) list.push({ key: 'yingneng', name: '盈能' });
-  if (p.shuangbei) list.push({ key: 'shuangbei', name: '双倍圣水' });
+  if (p.shuangbei > 0) list.push({ key: 'shuangbei', name: '双倍圣水' });
   if (p.huxi) list.push({ key: 'huxi', name: '呼吸回血' });
   if (p.qianghua) list.push({ key: 'qianghua', name: '强化' });
   if (p.bishi) list.push({ key: 'bishi', name: '鄙视' });
@@ -140,8 +140,8 @@ const SKILLS = {
   '7': [
     { id: 'qibu', name: '七步', desc: '对方每回合结束时-4血；被净化1次降为-3，第2次解除；不触发无敌、不受增伤', star: false, isAttack: false, isDigit: false,
       run(c) { c.o.qibu = { stage: 1, owner: c.pIdx }; c.log(`七步：${c.o.name} 身中剧毒`); } },
-    { id: 'shuangbei', name: '双倍圣水', desc: '此后你每回合额外+1$', star: false, isAttack: false, isDigit: false,
-      run(c) { c.p.shuangbei = true; c.log('双倍圣水生效'); } },
+    { id: 'shuangbei', name: '双倍圣水', desc: '此后你每回合额外+1$（可叠加）', star: false, isAttack: false, isDigit: false,
+      run(c) { c.p.shuangbei = (c.p.shuangbei || 0) + 1; c.log(`双倍圣水生效（每回合额外+${c.p.shuangbei}$）`); } },
     { id: 'gongping', name: '公平正义', desc: '+1$；去除对方一个正面buff（荆棘/无敌/盈能/双倍圣水/呼吸回血/强化/鄙视/淬毒）', star: false, isAttack: false, isDigit: false,
       run(c) {
         c.gain(1);
@@ -152,7 +152,7 @@ const SKILLS = {
           case 'jingji': c.o.jingji = false; break;
           case 'wudi': c.o.wudi = false; break;
           case 'yingneng': c.o.yingneng.active = false; break;
-          case 'shuangbei': c.o.shuangbei = false; break;
+          case 'shuangbei': c.o.shuangbei = 0; break;
           case 'huxi': c.o.huxi = false; break;
           case 'qianghua': c.o.qianghua = false; break;
           case 'bishi': c.o.bishi = false; break;
