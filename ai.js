@@ -1,13 +1,13 @@
 'use strict';
-// 唐五本地 AI：纯逻辑，三档难度（easy/normal/hard），零外部依赖
-// 依赖 window.__TW_engine（engine.js）与 window.__TW_skills（skills.js）
+// 唐五 AI：纯逻辑，三档难度（easy/normal/hard），零外部依赖
+// 双环境：Node 里 module.exports（服务端人机对战）；浏览器里 window.__TWAI（本地版）
 (function () {
-  const ENG = () => window.__TW_engine;
-  const SK = () => window.__TW_skills;
+  const ENG = (typeof window !== 'undefined' && window.__TW_engine) ? window.__TW_engine : require('./engine');
+  const SK = (typeof window !== 'undefined' && window.__TW_skills) ? window.__TW_skills : require('./skills');
 
   // 克隆局面（走引擎自带序列化，Set 也能正确还原）
   function cloneGame(g) {
-    return ENG().deserializeGame(ENG().serializeGame(g));
+    return ENG.deserializeGame(ENG.serializeGame(g));
   }
   // 当前回合的实际决策者（尤里控制时是控制者）
   function actorOf(g) { return g.controller >= 0 ? g.controller : g.turn; }
@@ -22,11 +22,11 @@
       out.push({ type: 'add', choice: 1 });
     } else if (g.step === 'awaitAction') {
       const digit = p.skill;
-      const list = SK().SKILLS[digit] || [];
+      const list = SK.SKILLS[digit] || [];
       if (p.energy >= digit) {
         list.forEach((sk, i) => {
           if (sk.id === 'gongping') {
-            const buffs = SK().positiveBuffs(g.players[1 - g.turn]);
+            const buffs = SK.positiveBuffs(g.players[1 - g.turn]);
             if (buffs.length) buffs.forEach((b, bi) => out.push({ type: 'act', skillIdx: i, buffIdx: bi }));
             else out.push({ type: 'act', skillIdx: i });
           } else {
@@ -41,9 +41,9 @@
 
   // 在给定局面上执行一个动作（直接调用真引擎）
   function apply(g, a) {
-    if (a.type === 'add') ENG().addHand(g, a.choice);
-    else if (a.type === 'act') ENG().actSkill(g, a.skillIdx, { buffIdx: a.buffIdx });
-    else if (a.type === 'pass') ENG().passTurn(g);
+    if (a.type === 'add') ENG.addHand(g, a.choice);
+    else if (a.type === 'act') ENG.actSkill(g, a.skillIdx, { buffIdx: a.buffIdx });
+    else if (a.type === 'pass') ENG.passTurn(g);
   }
 
   // 评估函数：从 aiIdx 视角给局面打分（越高越好）
@@ -116,5 +116,7 @@
     return bestByEval(g, aiIdx, actions, 1); // 困难：含对手反制的 1 层搜索
   }
 
-  window.__TWAI = { chooseAction, legalActions, evalGame };
+  const __aiExport = { chooseAction, legalActions, evalGame };
+  if (typeof module !== 'undefined' && module.exports) module.exports = __aiExport;
+  if (typeof window !== 'undefined') window.__TWAI = __aiExport;
 })();

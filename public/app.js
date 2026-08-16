@@ -69,6 +69,12 @@ async function doCreate() {
   try { setMe(await api('/api/hello', { name, roomCode: null })); }
   catch (e) { $('#lobby-err').textContent = e.message; }
 }
+async function doCreateAI() {
+  const name = $('#name-input').value.trim();
+  if (!name) { $('#lobby-err').textContent = '请输入昵称'; return; }
+  try { setMe(await api('/api/hello', { name, ai: true, difficulty: $('#ai-diff').value })); }
+  catch (e) { $('#lobby-err').textContent = e.message; }
+}
 async function doJoin() {
   const name = $('#name-input').value.trim();
   const code = $('#code-input').value.trim().toUpperCase();
@@ -273,6 +279,7 @@ function renderResult() {
 
 // ---------- 初始化 ----------
 $('#btn-create').onclick = doCreate;
+$('#btn-create-ai').onclick = doCreateAI;
 $('#btn-join').onclick = doJoin;
 $('#btn-leave').onclick = doLeave;
 $('#btn-rules').onclick = () => $('#rules-modal').classList.remove('hidden');

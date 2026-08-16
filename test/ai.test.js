@@ -1,15 +1,10 @@
 'use strict';
-// AI 冒烟测试：三档难度各跑若干局 AI vs AI，验证不崩溃、动作全部合法
+// AI 冒烟测试：三档难度各跑若干局 AI vs AI，验证不崩溃、动作全部合法；并测服务端 runAI 驱动
 // 注：游戏无回合上限，弱 AI（easy 随机）之间可能长期不分胜负，故"是否结束"只作报告，不作断言。
-const path = require('path');
-const fs = require('fs');
 const engine = require('../engine');
-const skills = require('../skills');
+const AI = require('../ai');
+const { runAI } = require('../lib/ai-player');
 const { createGame, startGame, addHand, actSkill, passTurn } = engine;
-
-global.window = { __TW_engine: engine, __TW_skills: skills };
-eval(fs.readFileSync(path.join(__dirname, '..', 'public', 'ai.js'), 'utf8'));
-const AI = global.window.__TWAI;
 
 function runGame(diff, maxSteps) {
   const g = createGame(['A', 'B']);
@@ -42,4 +37,24 @@ for (const d of diffs) {
     process.exitCode = 1;
   }
 }
-if (allOk) console.log('AI 冒烟测试通过：三档均不崩溃、动作全部合法');
+
+// runAI：模拟"人类创建人机房后，AI 自动走完自己的回合回到人类"
+try {
+  let humanTurnCount = 0;
+  for (let i = 0; i < 30; i++) {
+    const g = createGame(['你', 'AI']);
+    startGame(g);
+    const room = { game: g, difficulty: diffs[i % 3] };
+    runAI(room); // AI 若先手则走完；否则不动
+    if (g.over) continue; // AI 先手直接秒杀人类？理论上开局不可能
+    if (g.controller >= 0 ? g.controller === 1 : g.turn === 1) throw new Error('runAI 后仍轮到 AI');
+    if (g.step === 'awaitAdd' || g.step === 'awaitAction') humanTurnCount++;
+  }
+  console.log(`  ✓ runAI：30 局均正确回到人类回合（${humanTurnCount} 局轮到人类行动）`);
+} catch (e) {
+  allOk = false;
+  console.error(`  ✗ runAI\n    ${e.message}`);
+  process.exitCode = 1;
+}
+
+if (allOk) console.log('AI 冒烟测试通过：三档均不崩溃、动作全部合法，runAI 正常');

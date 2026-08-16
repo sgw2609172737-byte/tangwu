@@ -20,7 +20,7 @@
   <!-- 大厅 -->
   <section id="lobby" class="panel hidden">
     <h2>进入对局</h2>
-    <p class="sub">双人面对面回合制对战 · 先手20血 / 后手21血</p>
+    <p class="sub">双人联机 · 或单人挑战 AI · 先手20血 / 后手21血</p>
     <div class="join-row">
       <input id="name-input" placeholder="你的昵称" maxlength="12">
       <button id="btn-create" class="primary">创建房间</button>
@@ -28,6 +28,14 @@
     <div class="join-row">
       <input id="code-input" placeholder="房间码（4位）" maxlength="4" autocomplete="off">
       <button id="btn-join" class="primary">加入房间</button>
+    </div>
+    <div class="join-row">
+      <select id="ai-diff" title="AI 难度">
+        <option value="easy">AI 简单</option>
+        <option value="normal" selected>AI 普通</option>
+        <option value="hard">AI 困难</option>
+      </select>
+      <button id="btn-create-ai" class="primary">🤖 对战 AI</button>
     </div>
     <div id="lobby-err" class="err"></div>
   </section>

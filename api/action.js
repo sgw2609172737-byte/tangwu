@@ -2,6 +2,7 @@
 // Vercel 版：执行操作（POST /api/action）
 // type: add(choice) | act(skillIdx, buffIdx) | pass | rematch
 const { createGame, startGame, addHand, actSkill, passTurn } = require('../engine');
+const { runAI } = require('../lib/ai-player');
 const { loadRoom, saveRoom, withRoomLock } = require('../lib/vercel-store');
 
 module.exports = async function handler(req, res) {
@@ -19,6 +20,15 @@ module.exports = async function handler(req, res) {
       if (idx === -1) throw Object.assign(new Error('无效令牌'), { code: 403 });
 
       if (body.type === 'rematch') {
+        if (room.ai) {
+          // AI 房：AI 自动同意，立即重开
+          const name = room.players[0].name;
+          room.game = createGame([name, 'AI']);
+          startGame(room.game);
+          runAI(room);
+          await saveRoom(room);
+          return { ok: true };
+        }
         room.rematch[idx] = true;
         if (room.rematch.every(Boolean)) {
           const names = room.players.map((p) => p.name);
@@ -41,6 +51,7 @@ module.exports = async function handler(req, res) {
         default: throw Object.assign(new Error('未知操作'), { code: 400 });
       }
       if (r2 && r2.err) throw Object.assign(new Error(r2.err), { code: 400 });
+      if (room.ai) runAI(room); // 人机对战：人类操作后，AI 自动响应
       await saveRoom(room);
       return { ok: true };
     });

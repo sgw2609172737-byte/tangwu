@@ -2,6 +2,7 @@
 // Vercel 版：创建/加入房间（POST /api/hello）
 const crypto = require('crypto');
 const { createGame, startGame } = require('../engine');
+const { runAI } = require('../lib/ai-player');
 const { loadRoom, saveRoom, withRoomLock } = require('../lib/vercel-store');
 
 const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -39,7 +40,22 @@ module.exports = async function handler(req, res) {
           game: createGame(['玩家1', '玩家2']),
           players: [{ name: null, token: null }, { name: null, token: null }],
           rematch: [false, false],
+          ai: false,
+          difficulty: 'normal',
         };
+      }
+      // 人机对战：创建即开局（AI 为 1 号）
+      if (body.ai && !roomCode) {
+        room.ai = true;
+        room.difficulty = ['easy', 'normal', 'hard'].includes(body.difficulty) ? body.difficulty : 'normal';
+        room.players[0] = { name, token: crypto.randomBytes(16).toString('hex') };
+        room.players[1] = { name: 'AI', token: null };
+        room.game.players[0].name = name;
+        room.game.players[1].name = 'AI';
+        if (room.game.phase === 'waiting') startGame(room.game);
+        runAI(room); // 若 AI 先手，自动走完
+        await saveRoom(room);
+        return { ok: true, roomCode: room.code, playerIdx: 0, token: room.players[0].token, name };
       }
       const idx = room.players.findIndex((p) => !p.name);
       if (idx === -1) throw new Error('房间已满（2人）');

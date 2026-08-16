@@ -7,6 +7,7 @@ const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
 const { createGame, startGame, addHand, actSkill, passTurn, publicState } = require('./engine');
+const { runAI } = require('./lib/ai-player');
 
 const PORT = Number(process.env.PORT || 8800);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -87,6 +88,23 @@ function handleHello(req, res, body) {
   }
   let room = roomCode ? rooms.get(roomCode) : null;
   if (!room) room = newRoom();
+  // 人机对战：AI 为 1 号，创建即开局
+  if (body.ai && !roomCode) {
+    room.ai = true;
+    room.difficulty = ['easy', 'normal', 'hard'].includes(body.difficulty) ? body.difficulty : 'normal';
+    room.players[1].name = 'AI';
+    room.game.players[0].name = name;
+    room.game.players[1].name = 'AI';
+    const idx = 0;
+    const newToken = crypto.randomBytes(16).toString('hex');
+    room.players[0].name = name;
+    room.players[0].token = newToken;
+    tokenMap.set(newToken, { room, idx });
+    if (room.game.phase === 'waiting') startGame(room.game);
+    runAI(room); // 若 AI 先手，自动走完
+    broadcast(room);
+    return json(res, { ok: true, roomCode: room.code, playerIdx: idx, token: newToken, name });
+  }
   const idx = room.players.findIndex((p) => !p.name);
   if (idx === -1) return json(res, { ok: false, err: '房间已满（2人）' }, 400);
   room.players[idx].name = name;
@@ -107,6 +125,15 @@ function handleAction(req, res, body) {
   const room = t.room, g = room.game, idx = t.idx;
   // 再来一局：任何时候都可发起（对局结束后）
   if (body.type === 'rematch') {
+    if (room.ai) {
+      // AI 房：AI 自动同意，立即重开
+      const name = room.players[0].name;
+      room.game = createGame([name, 'AI']);
+      startGame(room.game);
+      runAI(room);
+      broadcast(room);
+      return json(res, { ok: true });
+    }
     room.rematch[idx] = true;
     if (room.rematch.every(Boolean)) {
       const names = room.players.map((p) => p.name);
@@ -127,6 +154,7 @@ function handleAction(req, res, body) {
     default: return json(res, { ok: false, err: '未知操作' }, 400);
   }
   if (r && r.err) return json(res, { ok: false, err: r.err }, 400);
+  if (room.ai) runAI(room); // 人机对战：人类操作后，AI 自动响应
   broadcast(room);
   json(res, { ok: true });
 }
