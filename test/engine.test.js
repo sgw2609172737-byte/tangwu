@@ -327,27 +327,53 @@ test('尤里：完全控制对方下回合', () => {
   assert.strictEqual(g.controller, first); // 控制权在对方回合开始时生效
 });
 
-test('公平正义：去除指定buff', () => {
-  const g = mk(); const p = cur(g), o = opp(g);
-  o.qianghua = true; o.wudi = true; o.jingji = true;
-  p.energy = 11;
-  force(g, 7); act(g, 'gongping', { buffIdx: 1 }); // 去除无敌
-  assert.strictEqual(o.wudi, false);
-  assert.strictEqual(o.qianghua, true);
-  assert.strictEqual(o.jingji, true);
+test('尤里：控制回合的相加按控制者的手结算', () => {
+  const g = mk(); const first = g.turn;
+  const o = opp(g); // 被控制者
+  cur(g).energy = 11;
+  force(g, 9); act(g, 'youli'); // first 控制 second 的下回合
+  assert.strictEqual(g.controller, first);
+  const casterE = g.players[first].energy % 10; // 控制者费用手个位
+  const before = o.skill;
+  add(g, 0); // 被控制者的技能手 + 控制者的费用手
+  assert.strictEqual(o.skill, (before + casterE) % 10);
+  // 行动阶段：按被控制者的技能手/费用判定（技能手=刚才相加后的值）
+  assert.strictEqual(g.step, 'awaitAction');
+  assert.strictEqual(cur(g).skill, o.skill);
 });
 
-test('公平正义：叠加型buff一次性全部去除', () => {
+test('公平正义：同一buff扣2层', () => {
   const g = mk(); const p = cur(g), o = opp(g);
-  o.huxi = 3; o.shuangbei = 2;
+  o.huxi = 3;
   p.energy = 11;
-  force(g, 7); act(g, 'gongping', { buffIdx: 0 }); // 去除双倍圣水（positiveBuffs顺序：shuangbei在前）
+  force(g, 7); act(g, 'gongping', { buffIdx: 0 });
+  assert.strictEqual(o.huxi, 1); // 3层 → 扣2层 → 剩1层
+});
+
+test('公平正义：两个buff各扣1层', () => {
+  const g = mk(); const p = cur(g), o = opp(g);
+  o.wudi = true; o.qianghua = true;
+  p.energy = 11;
+  force(g, 7); act(g, 'gongping', { buffIdx: 0 }); // 选中无敌
+  assert.strictEqual(o.wudi, false);
+  assert.strictEqual(o.qianghua, false); // 补足2层：另一个buff也被扣1层
+});
+
+test('公平正义：不足2层有多少去多少', () => {
+  const g = mk(); const p = cur(g), o = opp(g);
+  o.wudi = true;
+  p.energy = 11;
+  force(g, 7); act(g, 'gongping', { buffIdx: 0 });
+  assert.strictEqual(o.wudi, false); // 只有1层 → 只去1层
+});
+
+test('公平正义：优先选中buff，其余补充', () => {
+  const g = mk(); const p = cur(g), o = opp(g);
+  o.shuangbei = 1; o.huxi = 1;
+  p.energy = 11;
+  force(g, 7); act(g, 'gongping', { buffIdx: 0 }); // 选中双倍圣水（各1层）
   assert.strictEqual(o.shuangbei, 0);
-  assert.strictEqual(o.huxi, 3); // 未选中的不受影响
-  skipTurn(g); // 对方回合后回到自己
-  p.energy = 11;
-  force(g, 7); act(g, 'gongping', { buffIdx: 1 }); // 去除呼吸回血
-  assert.strictEqual(o.huxi, 0); // 3层一次全去
+  assert.strictEqual(o.huxi, 0); // 双倍圣水只有1层，呼吸回血补1层
 });
 
 test('识破：互换本体与假人血量再打1伤', () => {

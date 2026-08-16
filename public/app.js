@@ -174,34 +174,35 @@ function renderControls(actor) {
   const el = $('#controls');
   if (state.over) { el.innerHTML = ''; return; }
   const myIdx = me.idx;
-  const actorP = state.players[actor];
-  const oppOfActor = state.players[1 - actor];
+  const turnP = state.players[state.turn];       // 本回合出招者（被尤里控制时是被控制者）
+  const oppP = state.players[1 - state.turn];    // 对方（相加/公平正义的目标）
   const canAdd = actor === myIdx && state.step === 'awaitAdd';
   const canAct = actor === myIdx && state.step === 'awaitAction';
 
   if (!canAdd && !canAct) {
     let msg = '等待对方操作…';
     if (state.turn === myIdx && state.controller >= 0) msg = '你的回合被对方控制中…';
-    else if (state.controller === myIdx) msg = `你在控制 ${oppOfActor.name} 的回合…`;
+    else if (state.controller === myIdx) msg = `你在控制 ${turnP.name} 的回合…`;
     else if (actor === myIdx) msg = '本回合由系统自动进行…';
     el.innerHTML = `<div class="wait-msg">${msg}</div>`;
     return;
   }
+  const ctrlNote = state.controller === myIdx ? `🧠 正在控制 ${turnP.name} 的回合：` : '';
   if (canAdd) {
     el.innerHTML = `
-      <div class="prompt">👉 技能手与对方一只手相加（取个位），选一个数字：</div>
+      <div class="prompt">${ctrlNote}👉 技能手与对方一只手相加（取个位），选一个数字：</div>
       <div class="add-btns">
-        <button class="add-num" data-add="0">${oppOfActor.shownE}</button>
-        <button class="add-num" data-add="1">${oppOfActor.skill}</button>
+        <button class="add-num" data-add="0">${oppP.shownE}</button>
+        <button class="add-num" data-add="1">${oppP.skill}</button>
       </div>`;
     el.querySelectorAll('[data-add]').forEach((btn) => { btn.onclick = () => send({ type: 'add', choice: Number(btn.dataset.add) }); });
     return;
   }
-  // awaitAction
-  const digit = actorP.skill;
-  const afford = actorP.energy >= digit;
+  // awaitAction（注意：动作用的是出招者 turnP 的技能手/费用，不是控制者的）
+  const digit = turnP.skill;
+  const afford = turnP.energy >= digit;
   const skills = state.catalog[digit] || [];
-  let html = `<div class="prompt">技能手 = <b>${digit}</b>，费用 <b>${digit}$</b>（当前 ${actorP.energy}$）${state.chainCount >= 3 ? `，数字连携 <b>${state.chainCount}</b> 次！` : ''}</div>`;
+  let html = `<div class="prompt">${ctrlNote}技能手 = <b>${digit}</b>，费用 <b>${digit}$</b>（当前 ${turnP.energy}$）${state.chainCount >= 3 ? `，数字连携 <b>${state.chainCount}</b> 次！` : ''}</div>`;
   html += '<div class="skill-grid">';
   skills.forEach((sk, i) => {
     html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`);
@@ -213,18 +214,19 @@ function renderControls(actor) {
 }
 
 function chooseSkill(skillIdx, actor) {
-  const digit = state.players[actor].skill;
+  const turnP = state.players[state.turn];
+  const digit = turnP.skill;
   const sk = (state.catalog[digit] || [])[skillIdx];
   if (!sk) return;
   if (sk.id === 'gongping') {
-    const oppP = state.players[1 - actor];
+    const oppP = state.players[1 - state.turn];
     const list = oppP.positiveBuffs || [];
     if (!list.length) { send({ type: 'act', skillIdx }); return; }
     const overlay = document.createElement('div');
     overlay.className = 'modal';
     overlay.innerHTML = `
       <div class="modal-box">
-        <h2>去除对方哪个正面buff？</h2>
+        <h2>优先去除对方哪个正面buff？（共去除2层）</h2>
         <form id="buffform">
           ${list.map((b, i) => `<label class="buff-choice"><input type="radio" name="buffpick" value="${i}" ${i === 0 ? 'checked' : ''}> ${esc(b.name)}</label>`).join('')}
           <div class="btn-row"><button type="submit" class="primary">确认</button><button type="button" id="buffcancel">取消</button></div>
