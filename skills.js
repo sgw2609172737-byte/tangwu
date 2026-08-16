@@ -148,17 +148,18 @@ const SKILLS = {
         const list = positiveBuffs(c.o);
         if (!list.length) { c.log('公平正义：对方没有可去除的正面buff'); return; }
         const pick = (c.opts && c.opts.buffIdx != null && list[c.opts.buffIdx]) ? list[c.opts.buffIdx] : list[0];
+        let removed = 0;
         switch (pick.key) {
           case 'jingji': c.o.jingji = false; break;
           case 'wudi': c.o.wudi = false; break;
           case 'yingneng': c.o.yingneng.active = false; break;
-          case 'shuangbei': c.o.shuangbei = 0; break;
-          case 'huxi': c.o.huxi = 0; break;
+          case 'shuangbei': removed = c.o.shuangbei; c.o.shuangbei = 0; break;
+          case 'huxi': removed = c.o.huxi; c.o.huxi = 0; break;
           case 'qianghua': c.o.qianghua = false; break;
           case 'bishi': c.o.bishi = false; break;
           case 'cuidu': c.o.cuidu = false; break;
         }
-        c.log(`公平正义：去除了对方的【${pick.name}】`);
+        c.log(`公平正义：去除了对方的【${pick.name}】${removed > 1 ? `（${removed}层全部去除）` : ''}`);
       } },
   ],
   '8': [

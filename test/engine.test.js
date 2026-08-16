@@ -337,6 +337,19 @@ test('公平正义：去除指定buff', () => {
   assert.strictEqual(o.jingji, true);
 });
 
+test('公平正义：叠加型buff一次性全部去除', () => {
+  const g = mk(); const p = cur(g), o = opp(g);
+  o.huxi = 3; o.shuangbei = 2;
+  p.energy = 11;
+  force(g, 7); act(g, 'gongping', { buffIdx: 0 }); // 去除双倍圣水（positiveBuffs顺序：shuangbei在前）
+  assert.strictEqual(o.shuangbei, 0);
+  assert.strictEqual(o.huxi, 3); // 未选中的不受影响
+  skipTurn(g); // 对方回合后回到自己
+  p.energy = 11;
+  force(g, 7); act(g, 'gongping', { buffIdx: 1 }); // 去除呼吸回血
+  assert.strictEqual(o.huxi, 0); // 3层一次全去
+});
+
 test('识破：互换本体与假人血量再打1伤', () => {
   const g = mk(); const p = cur(g), o = opp(g);
   o.hp = 10; o.dummy = { alive: true, hp: 3, castBefore: true };
