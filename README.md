@@ -144,3 +144,10 @@ node test/live-poll.js     # 活体测试（轮询版，模拟新版客户端协
 - **技能卡牌**：`SKILL_ART`（ui.js 内 IIFE）= 40 个技能各自的 SVG 插画（徽章图元库 `P.*` + 辉光 + 光束 + 粒子，`scene()` 组装），8 类主题色由 CSS `.theme-*` 提供。★技能自动带金星角标。
 - **验收工具**：`node tools/gen-preview.js` 生成 `public/preview.html`（全部手势 + 模拟对局界面 + 40 张卡牌）；`public/debug-hands.html` 为手势放大调试页（本地用，不打包）。
 - 手势底座：`.hand-box::before` 圆盘（费用手蓝 / 技能手紫），无文字标注。
+
+## 本地版 / 人机对战 / 打包 exe
+
+- **本地单机版**：双击 `启动本地版.bat`（Edge 应用模式）打开 `public/local.html`，含人机对战（三档 AI）、本地双人、AI 观战；纯离线，不依赖服务器、不联网。
+- **AI**：`ai.js`（仓库根，Node+浏览器双环境）纯规则启发式 + 1 层搜索，**不接任何大模型/API**；`lib/ai-player.js` 在服务端驱动人机对战（自建 `server.js` 与 Vercel `api/*` 共用）。
+- **网页版人机对战**：大厅选难度 →「🤖 对战 AI」（AI 在服务端权威结算）。
+- **打包单文件 exe**：`node tools/build-electron.js` 组装应用目录 → 在其中 `npm install && npm run dist`（走 npmmirror 镜像）→ 产出 `dist/TangWu.exe`（Electron 便携版单文件，约 100MB，Win10/11 双击即玩，无需 Edge/.NET/联网）。
