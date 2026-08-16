@@ -2,3 +2,5 @@ node_modules/
 tools/
 *.log
 .DS_Store
+tangwu-game.zip
+public/debug-hands.html
