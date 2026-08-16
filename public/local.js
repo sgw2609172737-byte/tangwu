@@ -30,12 +30,9 @@ $('#btn-back').onclick = backToMenu;
 $('#btn-menu').onclick = () => { $('#result-modal').classList.add('hidden'); backToMenu(); };
 $('#btn-again').onclick = () => { $('#result-modal').classList.add('hidden'); startGameLocal(); };
 
-// 线上联机：应用版用系统浏览器打开（Electron 经 preload 暴露 openExternal），网页版直接新窗口
+// 线上联机：Electron 主进程用 setWindowOpenHandler 把 window.open 转到系统浏览器；网页版直接开新窗口
 if (ONLINE_URL) {
-  $('#btn-online').onclick = () => {
-    if (window.openExternal) window.openExternal(ONLINE_URL);
-    else window.open(ONLINE_URL, '_blank');
-  };
+  $('#btn-online').onclick = () => window.open(ONLINE_URL, '_blank');
 } else {
   $('#btn-online').classList.add('hidden');
 }
