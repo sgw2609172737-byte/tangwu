@@ -27,8 +27,18 @@ function toast(msg) {
 }
 
 async function send(body) {
-  try { await api('/api/action', { ...body, room: me.roomCode, token: me.token }); poll(); }
-  catch (e) { toast(e.message); }
+  if (window.TW_SFX) TW_SFX.click();
+  try {
+    await api('/api/action', { ...body, room: me.roomCode, token: me.token });
+    // 人机对战：服务端正在结算 AI 回合，先乐观显示"思考中"
+    if (state && state.ai && !state.over) {
+      $('#turn-banner').textContent = '🤖 AI 思考中…';
+      $('#turn-banner').classList.add('aiwait');
+      const actor = state.controller >= 0 ? state.controller : state.turn;
+      if (actor === me.idx) { $('#controls').innerHTML = '<div class="wait-msg">🤖 AI 思考中…</div>'; }
+    }
+    poll();
+  } catch (e) { toast(e.message); }
 }
 
 function setMe(d) {
@@ -120,8 +130,21 @@ function render() {
 
 function hpWidth(hp) { return Math.max(0, Math.min(100, (hp / 30) * 100)); }
 
+// 血量飘字 + 受伤闪光（跨渲染跟踪上一帧血量）
+const _prevHp = [-1, -1];
 function renderPlayerCard(el, p, label, active) {
   el.classList.toggle('active', active);
+  const idx = state.players.indexOf(p);
+  const hpDiff = (_prevHp[idx] < 0) ? 0 : (p.hp - _prevHp[idx]);
+  _prevHp[idx] = p.hp;
+  if (hpDiff < 0) {
+    el.classList.add('hurt');
+    setTimeout(() => el.classList.remove('hurt'), 600);
+    if (window.TW_SFX) TW_SFX.hurt();
+  } else if (hpDiff > 0 && window.TW_SFX) {
+    TW_SFX.heal();
+  }
+  const dmgNum = hpDiff !== 0 ? `<span class="dmg-num${hpDiff > 0 ? ' heal' : ''}">${hpDiff > 0 ? '+' : ''}${hpDiff}</span>` : '';
   const isCtrl = state.controller >= 0 && state.players.indexOf(p) === state.controller;
   const hpPct = hpWidth(p.hp);
   const hpClass = p.hp > 15 ? 'good' : (p.hp > 7 ? 'mid' : 'low');
@@ -132,7 +155,7 @@ function renderPlayerCard(el, p, label, active) {
     </div>
     <div class="hp-row">
       <div class="hp-bar"><div class="hp-fill ${hpClass}" style="width:${hpPct}%"></div></div>
-      <span class="hp-num">${p.hp}</span>
+      <span class="hp-num">${p.hp}</span>${dmgNum}
     </div>
     <div class="hands">
       <div class="hand-box energy" title="费用手">
@@ -148,7 +171,18 @@ function renderPlayerCard(el, p, label, active) {
   `;
 }
 
+// 只在"有变化"的那次渲染触发动画（避免每次轮询都闪）
+let _lastLogLen = 0;
 function renderGame() {
+  const changed = _lastLogLen !== state.log.length;
+  _lastLogLen = state.log.length;
+  const gameEl = $('#game');
+  if (changed) {
+    gameEl.classList.add('anim');
+    clearTimeout(gameEl._animT);
+    gameEl._animT = setTimeout(() => gameEl.classList.remove('anim'), 420);
+    if (window.TW_SFX) TW_SFX.whoosh();
+  }
   const myIdx = me.idx;
   const oppIdx = 1 - myIdx;
   const meP = state.players[myIdx];
@@ -160,6 +194,8 @@ function renderGame() {
   let b;
   if (state.over) {
     b = state.result === 'draw' ? '🤝 平局' : `🏆 ${state.players[state.winner].name} 获胜！`;
+  } else if (state.ai && actor !== myIdx) {
+    b = '🤖 AI 思考中…'; // 人机对战，轮到 AI（服务端结算）
   } else if (state.controller === myIdx) {
     b = `🧠 你在控制 ${oppP.name} 的回合`;
   } else if (state.turn === myIdx && state.controller >= 0) {
@@ -171,6 +207,7 @@ function renderGame() {
   }
   $('#turn-banner').textContent = b;
   $('#turn-banner').classList.toggle('myturn', !state.over && (state.turn === myIdx || state.controller === myIdx));
+  $('#turn-banner').classList.toggle('aiwait', !!state.ai && actor !== myIdx && !state.over);
   renderControls(actor);
   renderLog();
   renderResult();

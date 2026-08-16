@@ -541,3 +541,32 @@ function skillCardHTML(sk, digit, afford, attrs = '') {
     ${sk.isDigit ? '<div class="card-tag">数字</div>' : ''}
   </button>`;
 }
+
+// ---------- 极简音效（WebAudio 合成，无音频文件） ----------
+window.TW_SFX = (() => {
+  let ctx = null;
+  function ac() {
+    if (!ctx) { try { ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return null; } }
+    if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+    return ctx;
+  }
+  function tone(freq, dur, type, vol, slideTo) {
+    const c = ac(); if (!c) return;
+    try {
+      const o = c.createOscillator(), g = c.createGain();
+      o.type = type || 'sine';
+      o.frequency.setValueAtTime(freq, c.currentTime);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, c.currentTime + dur);
+      g.gain.setValueAtTime(vol || 0.04, c.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, c.currentTime + dur);
+      o.connect(g); g.connect(c.destination);
+      o.start(); o.stop(c.currentTime + dur + 0.02);
+    } catch (e) { /* 忽略音频错误 */ }
+  }
+  return {
+    click() { tone(560, 0.06, 'square', 0.03); },
+    whoosh() { tone(200, 0.2, 'sine', 0.045, 700); },
+    hurt() { tone(150, 0.18, 'sawtooth', 0.05, 85); },
+    heal() { tone(430, 0.13, 'sine', 0.04, 680); },
+  };
+})();

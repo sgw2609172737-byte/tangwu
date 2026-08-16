@@ -71,7 +71,7 @@
     if (me.freeze > 0) s -= 10;
     if (op.freeze > 0) s += 10;
     s += op.delayed.length * 5 - me.delayed.length * 5; // 延迟伤害
-    if (g.chainCount >= 2) s += 8;                  // 98K 连携威胁
+    if (g.chainCount >= 2) s += 12;                 // 98K 连携威胁（鼓励攒连携）
     if (g.chainCount >= 3) s += 20;
     return s;
   }
@@ -93,7 +93,8 @@
     const actions = legalActions(g);
     if (!actions.length) return evalGame(g, aiIdx);
     const maximize = actorOf(g) === aiIdx;
-    const list = ordered(g, aiIdx, actions, maximize);
+    // 排序只在浅层做（省算力、让深度更深）；深层直接用原序
+    const list = depth >= 2 ? ordered(g, aiIdx, actions, maximize) : actions;
     let best = maximize ? -Infinity : Infinity;
     for (const a of list) {
       const c = cloneGame(g);
@@ -154,7 +155,7 @@
       return bestByEval(g, aiIdx, actions, 1);
     }
     if (difficulty === 'normal') return bestByEval(g, aiIdx, actions, 2);
-    return hardSearch(g, aiIdx, actions, timeMs || 800);
+    return hardSearch(g, aiIdx, actions, timeMs || 3000); // 困难：本地预算 3 秒，尽量加深
   }
 
   const __aiExport = { chooseAction, legalActions, evalGame };

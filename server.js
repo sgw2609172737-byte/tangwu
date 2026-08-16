@@ -47,6 +47,7 @@ function newRoom() {
 function stateFor(room, youIdx) {
   return {
     roomCode: room.code,
+    ai: !!room.ai,
     connected: room.players.map((p) => !!p.sse),
     rematch: room.rematch.slice(),
     ...publicState(room.game, youIdx),

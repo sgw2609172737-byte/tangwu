@@ -13,6 +13,7 @@ module.exports = async function handler(req, res) {
   if (idx === -1) { res.status(403).json({ ok: false, err: '无效令牌' }); return; }
   res.json({
     roomCode: room.code,
+    ai: !!room.ai,
     connected: room.players.map((p) => !!p.name),
     rematch: room.rematch.slice(),
     ...publicState(room.game, idx),

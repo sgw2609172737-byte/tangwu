@@ -87,15 +87,27 @@ function buffChips(p) {
   return chips.join('');
 }
 
+// 血量飘字 + 受伤闪光（跨渲染跟踪上一帧血量）
+const _prevHp = [-1, -1];
 function renderCard(el, p, idx) {
   const active = !G.over && actorOf(G) === idx;
   el.classList.toggle('active', active);
+  const hpDiff = (_prevHp[idx] < 0) ? 0 : (p.hp - _prevHp[idx]);
+  _prevHp[idx] = p.hp;
+  if (hpDiff < 0) {
+    el.classList.add('hurt');
+    setTimeout(() => el.classList.remove('hurt'), 600);
+    if (window.TW_SFX) TW_SFX.hurt();
+  } else if (hpDiff > 0 && window.TW_SFX) {
+    TW_SFX.heal();
+  }
+  const dmgNum = hpDiff !== 0 ? `<span class="dmg-num${hpDiff > 0 ? ' heal' : ''}">${hpDiff > 0 ? '+' : ''}${hpDiff}</span>` : '';
   const hpPct = Math.max(0, Math.min(100, (p.hp / 30) * 100));
   const hpCls = p.hp > 15 ? 'good' : (p.hp > 7 ? 'mid' : 'low');
   const ctrlMark = G.controller === idx ? ' 🧠' : '';
   el.innerHTML = `
     <div class="p-head"><span class="p-name">${esc(p.name)}${ctrlMark}</span><span class="energy-badge" title="实际费用">费用 ${p.energy}$</span></div>
-    <div class="hp-row"><div class="hp-bar"><div class="hp-fill ${hpCls}" style="width:${hpPct}%"></div></div><span class="hp-num">${p.hp}</span></div>
+    <div class="hp-row"><div class="hp-bar"><div class="hp-fill ${hpCls}" style="width:${hpPct}%"></div></div><span class="hp-num">${p.hp}</span>${dmgNum}</div>
     <div class="hands">
       <div class="hand-box energy" title="费用手">${handSVG(p.energy % 10)}<div class="hand-digit energy">${p.energy % 10}</div></div>
       <div class="hand-box skill" title="技能手">${handSVG(p.skill)}<div class="hand-digit skill">${p.skill}</div></div>
@@ -103,7 +115,18 @@ function renderCard(el, p, idx) {
     <div class="buffs">${buffChips(p)}</div>`;
 }
 
+// 只在"有变化"的那次渲染触发动画（避免每次轮询都闪）
+let _lastLogLen = 0;
 function render() {
+  const changed = _lastLogLen !== G.log.length;
+  _lastLogLen = G.log.length;
+  const gameEl = $('#game');
+  if (changed) {
+    gameEl.classList.add('anim');
+    clearTimeout(gameEl._animT);
+    gameEl._animT = setTimeout(() => gameEl.classList.remove('anim'), 420);
+    if (window.TW_SFX) TW_SFX.whoosh();
+  }
   renderCard($('#p0-card'), G.players[0], 0);
   renderCard($('#p1-card'), G.players[1], 1);
   let b;
@@ -120,6 +143,10 @@ function render() {
   renderControls();
   renderResult();
 }
+
+// AI 思考提示（先画出来，再让出事件循环给浏览器渲染，最后才开始计算）
+function showThinking() { const el = $('#ai-thinking'); if (el) el.classList.remove('hidden'); }
+function hideThinking() { const el = $('#ai-thinking'); if (el) el.classList.add('hidden'); }
 
 function renderLog() {
   const el = $('#log');
@@ -203,6 +230,7 @@ function clickSkill(skillIdx) {
 
 function doAction(a) {
   if (G.over) return;
+  if (window.TW_SFX) TW_SFX.click();
   let r;
   if (a.type === 'add') r = TW.addHand(G, a.choice);
   else if (a.type === 'act') r = TW.actSkill(G, a.skillIdx, { buffIdx: a.buffIdx });
@@ -217,11 +245,16 @@ function scheduleAI() {
   if (G.over) return;
   const needAI = (cfg.mode === 'ai') || (cfg.mode === 'pve' && actorOf(G) === 1);
   if (!needAI) return;
+  showThinking(); // 先画出来，让浏览器渲染；计算前再让出一次事件循环
   aiTimer = setTimeout(() => {
-    if (G.over) return;
-    const a = AI.chooseAction(G, actorOf(G), cfg.diff);
-    if (a) doAction(a); else render();
-  }, 650);
+    if (G.over) { hideThinking(); return; }
+    setTimeout(() => {
+      if (G.over) { hideThinking(); return; }
+      const a = AI.chooseAction(G, actorOf(G), cfg.diff);
+      hideThinking();
+      if (a) doAction(a); else render();
+    }, 30);
+  }, 400);
 }
 
 function renderResult() {
