@@ -1,6 +1,7 @@
 'use strict';
 // 唐五 AI：纯逻辑，三档难度（easy/normal/hard），零外部依赖
 // 双环境：Node 里 module.exports（服务端人机对战）；浏览器里 window.__TWAI（本地版）
+// hard = 2 层 α-β 搜索（算到"我→对手→我"），normal = 1 层（我→对手），easy = 随机为主
 (function () {
   const ENG = (typeof window !== 'undefined' && window.__TW_engine) ? window.__TW_engine : require('./engine');
   const SK = (typeof window !== 'undefined' && window.__TW_skills) ? window.__TW_skills : require('./skills');
@@ -54,28 +55,32 @@
     }
     const me = g.players[aiIdx], op = g.players[1 - aiIdx];
     let s = 0;
-    s += (me.hp - op.hp) * 6;                 // 血量差最重要
-    s += (me.energy - op.energy) * 2.5;       // 费用差
-    if (me.dummy.alive) s += 8;               // 假人 = 第二条命
-    if (op.dummy.alive) s -= 8;
-    const posOf = (p) => (p.shuangbei || 0) * 4 + (p.huxi || 0) * 5 + (p.qianghua ? 3 : 0)
-      + (p.wudi ? 5 : 0) + (p.jingji ? 3 : 0) + (p.yingneng.active ? 2 : 0)
-      + (p.bishi ? 3 : 0) + (p.cuidu ? 4 : 0) + (p.tanghua ? 2 : 0);
-    s += posOf(me) - posOf(op);               // 正面 buff 差
-    if (me.qibu.stage > 0) s -= 10;           // 负面状态
-    if (op.qibu.stage > 0) s += 10;
-    if (me.duming.active) s -= 6;             // 赌命倒计时压力
-    if (op.duming.active) s += 6;
-    if (me.freeze > 0) s -= 8;
-    if (op.freeze > 0) s += 8;
-    s += op.delayed.length * 3 - me.delayed.length * 3; // 延迟伤害
-    s += (g.chainCount >= 2 ? 4 : 0);         // 98K 连携威胁
+    const hpD = me.hp - op.hp;
+    s += hpD * 7;                                // 血量差
+    // 斩杀逼近（非线性）：对方快死时抢伤害，自己快死时保命
+    if (op.hp <= 8) s += (8 - op.hp) * 6;
+    if (me.hp <= 8) s -= (8 - me.hp) * 6;
+    s += (me.energy - op.energy) * 3;            // 费用差
+    if (me.dummy.alive) s += 9;                  // 假人 = 第二条命
+    if (op.dummy.alive) s -= 9;
+    const posOf = (p) => (p.shuangbei || 0) * 4 + (p.huxi || 0) * 6 + (p.qianghua ? 4 : 0)
+      + (p.wudi ? 6 : 0) + (p.jingji ? 3 : 0) + (p.yingneng.active ? 3 : 0)
+      + (p.bishi ? 3 : 0) + (p.cuidu ? 5 : 0) + (p.tanghua ? 2 : 0);
+    s += posOf(me) - posOf(op);                  // 正面 buff 差（含层数）
+    if (me.qibu.stage > 0) s -= 12;              // 负面状态
+    if (op.qibu.stage > 0) s += 12;
+    if (me.duming.active) s -= 7;                // 赌命倒计时压力
+    if (op.duming.active) s += 7;
+    if (me.freeze > 0) s -= 10;
+    if (op.freeze > 0) s += 10;
+    s += op.delayed.length * 4 - me.delayed.length * 4; // 延迟伤害
+    s += (g.chainCount >= 2 ? 5 : 0) + (g.chainCount >= 3 ? 10 : 0); // 98K 连携威胁
     return s;
   }
 
-  // 极小化极大：maximize 取决于当前决策者是否 AI（支持尤里控制、再次行动）
-  function minimax(g, aiIdx, depth) {
-    if (g.over) return evalGame(g, aiIdx);
+  // α-β 极小化极大：maximize 取决于当前决策者是否 AI（支持尤里控制、再次行动）
+  function minimax(g, aiIdx, depth, alpha, beta) {
+    if (g.over || depth <= 0) return evalGame(g, aiIdx);
     const actions = legalActions(g);
     if (!actions.length) return evalGame(g, aiIdx);
     const maximize = actorOf(g) === aiIdx;
@@ -83,21 +88,36 @@
     for (const a of actions) {
       const c = cloneGame(g);
       apply(c, a);
-      const v = depth <= 1 ? evalGame(c, aiIdx) : minimax(c, aiIdx, depth - 1);
-      best = maximize ? Math.max(best, v) : Math.min(best, v);
+      const v = minimax(c, aiIdx, depth - 1, alpha, beta);
+      if (maximize) {
+        best = Math.max(best, v);
+        alpha = Math.max(alpha, v);
+      } else {
+        best = Math.min(best, v);
+        beta = Math.min(beta, v);
+      }
+      if (beta <= alpha) break; // 剪枝
     }
     return best;
   }
 
-  // 从动作列表里挑最佳（depth=0 贪心只看自己；depth=1 再算对手最优反制）
+  // 从动作列表里挑最佳（depth=0 只看自己；depth≥1 继续往下搜索）
   function bestByEval(g, aiIdx, actions, depth) {
-    let best = null, bestScore = -Infinity;
-    for (const a of actions) {
+    // 根节点按"立即结果"排序，让 α-β 剪枝更有效
+    const scored = actions.map((a) => {
       const c = cloneGame(g);
       apply(c, a);
-      let score;
-      if (depth > 0 && !c.over) score = minimax(c, aiIdx, depth);
-      else score = evalGame(c, aiIdx);
+      return { a, v: evalGame(c, aiIdx) };
+    });
+    scored.sort((x, y) => y.v - x.v);
+    let best = null, bestScore = -Infinity;
+    for (const { a, v: v0 } of scored) {
+      let score = v0;
+      if (depth > 0) {
+        const c = cloneGame(g);
+        apply(c, a);
+        score = c.over ? evalGame(c, aiIdx) : minimax(c, aiIdx, depth, -Infinity, Infinity);
+      }
       score += Math.random() * 0.001; // 平局时打破死板
       if (score > bestScore) { bestScore = score; best = a; }
     }
@@ -112,8 +132,8 @@
       if (Math.random() < 0.55) return actions[(Math.random() * actions.length) | 0];
       return bestByEval(g, aiIdx, actions, 0);
     }
-    if (difficulty === 'normal') return bestByEval(g, aiIdx, actions, 0);
-    return bestByEval(g, aiIdx, actions, 1); // 困难：含对手反制的 1 层搜索
+    if (difficulty === 'normal') return bestByEval(g, aiIdx, actions, 1); // 我→对手
+    return bestByEval(g, aiIdx, actions, 2); // 困难：我→对手→我（α-β）
   }
 
   const __aiExport = { chooseAction, legalActions, evalGame };

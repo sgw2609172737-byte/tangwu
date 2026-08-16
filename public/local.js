@@ -10,6 +10,9 @@ let G = null;
 let aiTimer = null;
 let toastTimer = null;
 
+// 线上联机地址（改成你的在线版网址；留空则隐藏"线上联机"按钮）
+const ONLINE_URL = '';
+
 function toast(msg) {
   const t = $('#toast');
   t.textContent = msg;
@@ -26,6 +29,16 @@ $('#btn-start').onclick = startGameLocal;
 $('#btn-back').onclick = backToMenu;
 $('#btn-menu').onclick = () => { $('#result-modal').classList.add('hidden'); backToMenu(); };
 $('#btn-again').onclick = () => { $('#result-modal').classList.add('hidden'); startGameLocal(); };
+
+// 线上联机：应用版用系统浏览器打开（Electron 经 preload 暴露 openExternal），网页版直接新窗口
+if (ONLINE_URL) {
+  $('#btn-online').onclick = () => {
+    if (window.openExternal) window.openExternal(ONLINE_URL);
+    else window.open(ONLINE_URL, '_blank');
+  };
+} else {
+  $('#btn-online').classList.add('hidden');
+}
 
 function backToMenu() {
   clearTimeout(aiTimer);

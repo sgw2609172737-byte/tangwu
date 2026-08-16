@@ -43,19 +43,22 @@
         </div>
       </div>
       <button id="btn-start" class="primary">开始对局</button>
+      <button id="btn-online" class="ghost">🌐 线上联机</button>
     </div>
     <p class="hint" style="margin-top:14px">规则：先手 20 血 / 后手 21 血，能量→费用，详见「规则手册」</p>
   </section>
 
   <!-- 对局 -->
   <section id="game" class="hidden">
-    <div class="player-card" id="p0-card"></div>
-    <div class="mid">
+    <div class="game-left">
       <div id="turn-banner" class="banner"></div>
+      <div class="player-card" id="p0-card"></div>
+      <div class="player-card" id="p1-card"></div>
+      <div id="controls" class="controls-local"></div>
+    </div>
+    <div class="game-right">
       <div id="log" class="log"></div>
     </div>
-    <div class="player-card" id="p1-card"></div>
-    <div id="controls" class="controls-local"></div>
   </section>
 </main>
 
