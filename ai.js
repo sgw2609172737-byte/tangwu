@@ -23,8 +23,10 @@
     } else if (g.step === 'awaitAction') {
       const digit = p.skill;
       const list = SK.SKILLS[digit] || [];
+      if (p.streak >= 24) { out.push({ type: 'pass' }); return out; } // 连出上限：只能空过
       if (p.energy >= digit) {
         list.forEach((sk, i) => {
+          if (g.banned && g.banned.indexOf(sk.id) >= 0) return; // 跳过被禁技能
           if (sk.id === 'gongping') {
             const buffs = SK.positiveBuffs(g.players[1 - g.turn]);
             if (buffs.length) buffs.forEach((b, bi) => out.push({ type: 'act', skillIdx: i, buffIdx: bi }));
@@ -85,6 +87,7 @@
     const list = SK.SKILLS[p.skill] || [];
     for (let i = 0; i < list.length; i++) {
       if (!list[i].isAttack) continue;
+      if (g.banned && g.banned.indexOf(list[i].id) >= 0) continue; // 被禁技能不可用
       const c = cloneGame(g);
       ENG.actSkill(c, i, {});
       if (c.over && c.winner === g.turn) return { type: 'act', skillIdx: i };
@@ -200,7 +203,15 @@
     return hardSearch(g, aiIdx, actions, timeMs || 5000); // 困难：本地预算 5 秒，尽量加深
   }
 
-  const __aiExport = { chooseAction, legalActions, evalGame };
+  // 盲ban：AI 选一个技能禁用（盲选，无对局信息，仅按"强技能优先"）
+  const BAN_POOL = ['jiubaK', 'yuandu', 'duming', 'youli', 'jijiu', 'shipo', 'cuidu', 'bing'];
+  function chooseBan(g, aiIdx, difficulty) {
+    const all = Object.keys(SK.SKILLS).flatMap((d) => SK.SKILLS[d].map((s) => s.id));
+    if (difficulty === 'easy') return all[(Math.random() * all.length) | 0];
+    return BAN_POOL[(Math.random() * BAN_POOL.length) | 0];
+  }
+
+  const __aiExport = { chooseAction, chooseBan, legalActions, evalGame };
   if (typeof module !== 'undefined' && module.exports) module.exports = __aiExport;
   if (typeof window !== 'undefined') window.__TWAI = __aiExport;
 })();

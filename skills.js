@@ -153,24 +153,22 @@ const SKILLS = {
       run(c) { c.healSelf(2); c.o.freeze = Math.max(c.o.freeze, 2); c.log(`冰！：${c.o.name} 被冰封2回合`); } },
   ],
   '7': [
-    { id: 'qibu', name: '七步', desc: '对方每回合结束时-4血；被净化1次降为-3，第2次解除；不触发无敌、不受增伤', star: false, isAttack: false, isDigit: false,
+    { id: 'qibu', name: '七步', desc: '对方每回合结束时-3血；被净化1次降为-2，第2次解除；不触发无敌、不受增伤', star: false, isAttack: false, isDigit: false,
       run(c) { c.o.qibu = { stage: 1, owner: c.pIdx }; c.log(`七步：${c.o.name} 身中剧毒`); } },
     { id: 'shuangbei', name: '双倍圣水', desc: '此后你每回合额外+1$（可叠加）', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.shuangbei = (c.p.shuangbei || 0) + 1; c.log(`双倍圣水生效（每回合额外+${c.p.shuangbei}$）`); } },
-    { id: 'gongping', name: '公平正义', desc: '+1$；去除对方正面buff共2层（同一buff可扣2层，或两个buff各1层；不足2层有多少去多少）', star: false, isAttack: false, isDigit: false,
+    { id: 'gongping', name: '公平正义', desc: '去除对方1层正面buff；本回合技能手"跳到7"时改为去除2层（同一buff扣2层，或两个buff各1层）', star: false, isAttack: false, isDigit: false,
       run(c) {
-        c.gain(1);
         const list = positiveBuffs(c.o);
         if (!list.length) { c.log('公平正义：对方没有可去除的正面buff'); return; }
         const pick = (c.opts && c.opts.buffIdx != null && list[c.opts.buffIdx]) ? list[c.opts.buffIdx] : list[0];
+        const maxLayers = c.p.jumped7 ? 2 : 1;
         const counts = {};
         const take = (key) => { if (removeBuffLayer(c.o, key)) { counts[key] = (counts[key] || 0) + 1; return true; } return false; };
         let layers = 0;
-        // 优先从选中的 buff 扣，最多 2 层
-        for (let i = 0; i < 2 && layers < 2; i++) if (take(pick.key)) layers++;
-        // 不足 2 层时从其余 buff 各补 1 层
+        for (let i = 0; i < maxLayers && layers < maxLayers; i++) if (take(pick.key)) layers++;
         for (const b of list) {
-          if (layers >= 2) break;
+          if (layers >= maxLayers) break;
           if (b.key !== pick.key && take(b.key)) layers++;
         }
         const names = list.reduce((m, b) => { m[b.key] = b.name; return m; }, {});
@@ -209,12 +207,12 @@ const SKILLS = {
   '0': [
     { id: 'danxiao', name: '氮笑', desc: '+1$', star: false, isAttack: false, isDigit: false,
       run(c) { c.gain(1); } },
-    { id: 'jinghua', name: '净化', desc: '+1血；解除自身所有延迟/持续伤害；七步：第1次降为-3，第2次解除', star: false, isAttack: false, isDigit: false,
+    { id: 'jinghua', name: '净化', desc: '+1血；解除自身所有延迟/持续伤害；七步：第1次降为-2，第2次解除', star: false, isAttack: false, isDigit: false,
       run(c) {
         c.healSelf(1);
         const nDelayed = c.p.delayed.length;
         c.p.delayed = [];
-        if (c.p.qibu.stage === 1) { c.p.qibu.stage = 2; c.log('净化：七步降为每回合-3血'); }
+        if (c.p.qibu.stage === 1) { c.p.qibu.stage = 2; c.log('净化：七步降为每回合-2血'); }
         else if (c.p.qibu.stage === 2) { c.p.qibu.stage = 0; c.log('净化：七步已解除'); }
         else if (nDelayed) c.log(`净化：解除了${nDelayed}层延迟伤害`);
         else c.log('净化：+1血');

@@ -1,8 +1,7 @@
 'use strict';
 // Vercel 版：创建/加入房间（POST /api/hello）
 const crypto = require('crypto');
-const { createGame, startGame } = require('../engine');
-const { runAI } = require('../lib/ai-player');
+const { createGame } = require('../engine');
 const { loadRoom, saveRoom, withRoomLock } = require('../lib/vercel-store');
 
 const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -44,7 +43,7 @@ module.exports = async function handler(req, res) {
           difficulty: 'normal',
         };
       }
-      // 人机对战：创建即开局（AI 为 1 号）
+      // 人机对战：创建进入 ban 阶段（AI 为 1 号，人类先 ban）
       if (body.ai && !roomCode) {
         room.ai = true;
         room.difficulty = ['easy', 'normal', 'hard'].includes(body.difficulty) ? body.difficulty : 'normal';
@@ -52,8 +51,7 @@ module.exports = async function handler(req, res) {
         room.players[1] = { name: 'AI', token: null };
         room.game.players[0].name = name;
         room.game.players[1].name = 'AI';
-        if (room.game.phase === 'waiting') startGame(room.game);
-        runAI(room); // 若 AI 先手，自动走完
+        if (room.game.phase === 'waiting') room.game.phase = 'banning';
         await saveRoom(room);
         return { ok: true, roomCode: room.code, playerIdx: 0, token: room.players[0].token, name };
       }
@@ -63,7 +61,7 @@ module.exports = async function handler(req, res) {
       room.players[idx].token = crypto.randomBytes(16).toString('hex');
       if (room.players.every((p) => p.name) && room.game.phase === 'waiting') {
         room.game.players.forEach((gp, i) => { gp.name = room.players[i].name; });
-        startGame(room.game);
+        room.game.phase = 'banning'; // 双方就位 → 进入盲ban
       }
       await saveRoom(room);
       return { ok: true, roomCode: room.code, playerIdx: idx, token: room.players[idx].token, name };

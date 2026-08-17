@@ -6,8 +6,9 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
-const { createGame, startGame, addHand, actSkill, passTurn, publicState } = require('./engine');
+const { createGame, startGame, submitBan, addHand, actSkill, passTurn, publicState } = require('./engine');
 const { runAI } = require('./lib/ai-player');
+const AI = require('./ai');
 
 const PORT = Number(process.env.PORT || 8800);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -89,7 +90,7 @@ function handleHello(req, res, body) {
   }
   let room = roomCode ? rooms.get(roomCode) : null;
   if (!room) room = newRoom();
-  // 人机对战：AI 为 1 号，创建即开局
+  // 人机对战：AI 为 1 号，创建进入 ban 阶段（人类先 ban，AI 随后自动 ban）
   if (body.ai && !roomCode) {
     room.ai = true;
     room.difficulty = ['easy', 'normal', 'hard'].includes(body.difficulty) ? body.difficulty : 'normal';
@@ -101,8 +102,7 @@ function handleHello(req, res, body) {
     room.players[0].name = name;
     room.players[0].token = newToken;
     tokenMap.set(newToken, { room, idx });
-    if (room.game.phase === 'waiting') startGame(room.game);
-    runAI(room); // 若 AI 先手，自动走完
+    if (room.game.phase === 'waiting') room.game.phase = 'banning';
     broadcast(room);
     return json(res, { ok: true, roomCode: room.code, playerIdx: idx, token: newToken, name });
   }
@@ -114,7 +114,7 @@ function handleHello(req, res, body) {
   tokenMap.set(newToken, { room, idx });
   if (room.players.every((p) => p.name) && room.game.phase === 'waiting') {
     room.game.players.forEach((gp, i) => { gp.name = room.players[i].name; });
-    startGame(room.game);
+    room.game.phase = 'banning'; // 双方就位 → 进入盲ban
   }
   broadcast(room);
   json(res, { ok: true, roomCode: room.code, playerIdx: idx, token: newToken, name });
@@ -127,11 +127,10 @@ function handleAction(req, res, body) {
   // 再来一局：任何时候都可发起（对局结束后）
   if (body.type === 'rematch') {
     if (room.ai) {
-      // AI 房：AI 自动同意，立即重开
+      // AI 房：AI 自动同意，立即重开（重新进入 ban 阶段）
       const name = room.players[0].name;
       room.game = createGame([name, 'AI']);
-      startGame(room.game);
-      runAI(room);
+      room.game.phase = 'banning';
       broadcast(room);
       return json(res, { ok: true });
     }
@@ -139,9 +138,21 @@ function handleAction(req, res, body) {
     if (room.rematch.every(Boolean)) {
       const names = room.players.map((p) => p.name);
       room.game = createGame(names);
+      room.game.phase = 'banning';
       room.rematch = [false, false];
-      startGame(room.game);
     }
+    broadcast(room);
+    return json(res, { ok: true });
+  }
+  // 盲ban：禁用阶段提交
+  if (body.type === 'ban') {
+    let r = submitBan(g, idx, String(body.skillId || ''));
+    if (r && r.err) return json(res, { ok: false, err: r.err }, 400);
+    // AI 房：人类 ban 完后 AI 自动 ban
+    if (room.ai && g.phase === 'banning' && !g.banPicks[1]) {
+      submitBan(g, 1, AI.chooseBan(g, 1, room.difficulty));
+    }
+    if (g.phase === 'playing' && room.ai) runAI(room); // AI 若先手自动走完
     broadcast(room);
     return json(res, { ok: true });
   }

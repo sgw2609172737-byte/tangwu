@@ -56,10 +56,24 @@ async function test(name, fn) {
     roomCode = a.roomCode;
   });
 
-  await test('加入房间并自动开局', async () => {
+  await test('加入房间进入禁用阶段', async () => {
     b = (await call(hello, 'POST', { name: 'Bob', roomCode })).body;
     assert.strictEqual(b.ok, true);
     assert.strictEqual(b.playerIdx, 1);
+    const s = (await call(state, 'GET', null, { room: roomCode, token: a.token })).body;
+    assert.strictEqual(s.phase, 'banning');
+  });
+
+  await test('盲ban：双方选完公示并开局', async () => {
+    let r = await call(action, 'POST', { room: roomCode, token: a.token, type: 'ban', skillId: 'jiubaK' });
+    assert.strictEqual(r.body.ok, true);
+    let s = (await call(state, 'GET', null, { room: roomCode, token: a.token })).body;
+    assert.strictEqual(s.phase, 'banning'); // 未双选完
+    r = await call(action, 'POST', { room: roomCode, token: b.token, type: 'ban', skillId: 'yuandu' });
+    assert.strictEqual(r.body.ok, true);
+    s = (await call(state, 'GET', null, { room: roomCode, token: a.token })).body;
+    assert.strictEqual(s.phase, 'playing');
+    assert.deepStrictEqual(s.banned, ['jiubaK', 'yuandu']);
   });
 
   await test('满员拒绝第三人', async () => {
@@ -111,13 +125,11 @@ async function test(name, fn) {
     assert.strictEqual(s.turn, 1 - actor); // 行动后回合换边
   });
 
-  await test('再来一局：双方确认后重置', async () => {
+  await test('再来一局：双方确认后回到禁用阶段', async () => {
     await call(action, 'POST', { room: roomCode, token: a.token, type: 'rematch' });
     await call(action, 'POST', { room: roomCode, token: b.token, type: 'rematch' });
     const s = (await call(state, 'GET', null, { room: roomCode, token: a.token })).body;
-    assert.strictEqual(s.phase, 'playing');
-    assert.strictEqual(s.players[s.turn].hp, 20);
-    assert.strictEqual(s.players[1 - s.turn].hp, 21);
+    assert.strictEqual(s.phase, 'banning');
   });
 
   await test('引擎序列化往返（链数字 Set 恢复）', async () => {

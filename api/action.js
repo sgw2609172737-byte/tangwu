@@ -1,8 +1,9 @@
 'use strict';
 // Vercel 版：执行操作（POST /api/action）
 // type: add(choice) | act(skillIdx, buffIdx) | pass | rematch
-const { createGame, startGame, addHand, actSkill, passTurn } = require('../engine');
+const { createGame, startGame, submitBan, addHand, actSkill, passTurn } = require('../engine');
 const { runAI } = require('../lib/ai-player');
+const AI = require('../ai');
 const { loadRoom, saveRoom, withRoomLock } = require('../lib/vercel-store');
 
 module.exports = async function handler(req, res) {
@@ -21,11 +22,10 @@ module.exports = async function handler(req, res) {
 
       if (body.type === 'rematch') {
         if (room.ai) {
-          // AI 房：AI 自动同意，立即重开
+          // AI 房：AI 自动同意，立即重开（重新进入 ban 阶段）
           const name = room.players[0].name;
           room.game = createGame([name, 'AI']);
-          startGame(room.game);
-          runAI(room);
+          room.game.phase = 'banning';
           await saveRoom(room);
           return { ok: true };
         }
@@ -33,9 +33,21 @@ module.exports = async function handler(req, res) {
         if (room.rematch.every(Boolean)) {
           const names = room.players.map((p) => p.name);
           room.game = createGame(names);
+          room.game.phase = 'banning';
           room.rematch = [false, false];
-          startGame(room.game);
         }
+        await saveRoom(room);
+        return { ok: true };
+      }
+
+      // 盲ban：禁用阶段提交
+      if (body.type === 'ban') {
+        const r = submitBan(g, idx, String(body.skillId || ''));
+        if (r && r.err) throw Object.assign(new Error(r.err), { code: 400 });
+        if (room.ai && g.phase === 'banning' && !g.banPicks[1]) {
+          submitBan(g, 1, AI.chooseBan(g, 1, room.difficulty));
+        }
+        if (g.phase === 'playing' && room.ai) runAI(room); // AI 若先手自动走完
         await saveRoom(room);
         return { ok: true };
       }

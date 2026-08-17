@@ -2,6 +2,10 @@
 // 《唐五》游戏引擎：回合流程、伤害管线、buff、胜负判定（纯逻辑，无网络依赖）
 const { SKILLS: __SKILLS, positiveBuffs: __positiveBuffs } = (typeof window !== 'undefined' && window.__TW_skills) ? window.__TW_skills : require('./skills');
 
+// 全部技能 id → 技能对象 索引（用于 ban 校验与公示）
+const __ALL_SKILLS_BY_ID = {};
+for (const d of Object.keys(__SKILLS)) for (const s of __SKILLS[d]) __ALL_SKILLS_BY_ID[s.id] = s;
+
 const CAP_E = 11;          // 费用上限
 const MAX_ACTIONS = 50;    // 每回合行动次数上限（含再次行动）
 
@@ -43,6 +47,8 @@ function mkPlayer(name, hp) {
     turnDmg: 0,                                      // 本回合造成的伤害（赏金）
     dealtThisTurn: false,                            // 本回合是否造成过伤害（盈能）
     controlledBy: -1,                                // 尤里：下回合被谁控制
+    streak: 0,                                       // 连续出技能计数（对方出技能才归零）
+    jumped7: false,                                  // 本回合技能手是否"跳到7"（公平正义加成）
   };
 }
 
@@ -61,6 +67,8 @@ function createGame(names) {
     chainDigits: new Set(),
     actionsUsed: 0,
     pendingDumingAgain: false,                       // 赌命"瞬时伤害≥9"的额外行动
+    banned: [],                                      // 被禁用的技能 id（盲ban，双方各选1，可重复）
+    banPicks: [null, null],                          // 双方各自选的禁用技能（公示前不公开）
     log: [],
     over: false, result: null, winner: -1,
   };
@@ -198,7 +206,7 @@ function endTurn(g) {
   const p = cur(g), o = opp(g);
   // 七步：回合结束时扣血（不触发无敌、不受增伤）
   if (p.qibu.stage > 0) {
-    const d = p.qibu.stage === 1 ? 4 : 3;
+    const d = p.qibu.stage === 1 ? 3 : 2;
     const owner = g.players[p.qibu.owner] || o;
     dealDamage(g, owner, p, d, { isDot: true, noBonus: true, note: '七步' });
     if (g.over) return;
@@ -240,6 +248,21 @@ function startGame(g) {
   startTurn(g);
 }
 
+// 盲ban：双方各选一个技能禁用；双方都选完才公示并开局
+function submitBan(g, playerIdx, skillId) {
+  if (g.phase !== 'banning') return { err: '当前不是禁用阶段' };
+  if (g.banPicks[playerIdx]) return { err: '你已经选过禁用技能了' };
+  const sk = __ALL_SKILLS_BY_ID[skillId];
+  if (!sk) return { err: '技能不存在' };
+  g.banPicks[playerIdx] = skillId;
+  if (g.banPicks[0] && g.banPicks[1]) {
+    g.banned = [...new Set(g.banPicks)]; // 可重复，去重后公示
+    log(g, `🚫 禁用公示：${g.banned.map((id) => __ALL_SKILLS_BY_ID[id].name).join('、')}（本局不可使用）`);
+    startGame(g);
+  }
+  return { ok: true };
+}
+
 // ---------- 玩家操作 ----------
 function addHand(g, choice) {
   if (g.over || g.step !== 'awaitAdd') return { err: '现在不是相加阶段' };
@@ -247,6 +270,7 @@ function addHand(g, choice) {
   const shown = choice === 0 ? o.energy % 10 : o.skill;
   const old = p.skill;
   p.skill = (p.skill + shown) % 10;
+  p.jumped7 = (p.skill === 7);
   g.step = 'awaitAction';
   log(g, `✋ ${p.name} 技能手与对方${choice === 0 ? '费用手' : '技能手'}（${shown}）相加：${old} → ${p.skill}`);
   return { ok: true };
@@ -258,9 +282,12 @@ function actSkill(g, skillIdx, opts = {}) {
   const list = __SKILLS[p.skill];
   const sk = list && list[skillIdx];
   if (!sk) return { err: '技能不存在' };
+  if (g.banned && g.banned.indexOf(sk.id) >= 0) return { err: '该技能已被禁用' };
+  if (p.streak >= 24) return { err: '连续出技能已达24次，只能空过' };
   if (p.energy < p.skill) return { err: '费用不足' };
   p.energy -= p.skill;
   g.actionsUsed++;
+  p.streak++; o.streak = 0; // 连出技能计数：自己+1，对方归零（解锁对方）
   log(g, `🎯 ${p.name} 释放了【${sk.name}】（消耗 ${p.skill}$）`);
   const ctx = {
     g, p, o, pIdx: idx(g, p), skill: sk, opts: opts || {},
@@ -348,8 +375,11 @@ function publicState(g, youIdx) {
     over: g.over,
     result: g.result,
     winner: g.winner,
+    banned: (g.banned || []).slice(),
+    banPicks: (g.banPicks || [null, null]).map((p) => !!p),
     players: g.players.map((p) => ({
       name: p.name, hp: p.hp, energy: p.energy, skill: p.skill, shownE: p.energy % 10,
+      streak: p.streak || 0,
       buffs: buffList(p),
       positiveBuffs: __positiveBuffs(p).map((b) => ({ key: b.key, name: b.name })),
     })),
@@ -368,6 +398,6 @@ function deserializeGame(json) {
   return g;
 }
 
-const __engineExport = { createGame, startGame, addHand, actSkill, passTurn, publicState, serializeGame, deserializeGame, SKILLS: __SKILLS };
+const __engineExport = { createGame, startGame, submitBan, addHand, actSkill, passTurn, publicState, serializeGame, deserializeGame, SKILLS: __SKILLS };
 if (typeof module !== 'undefined' && module.exports) module.exports = __engineExport;
 if (typeof window !== 'undefined') window.__TW_engine = __engineExport;

@@ -41,6 +41,7 @@ function backToMenu() {
   clearTimeout(aiTimer);
   G = null;
   $('#game').classList.add('hidden');
+  $('#ban').classList.add('hidden');
   $('#btn-back').classList.add('hidden');
   $('#menu').classList.remove('hidden');
 }
@@ -55,9 +56,57 @@ function actorOf(g) { return g.controller >= 0 ? g.controller : g.turn; }
 function startGameLocal() {
   $('#menu').classList.add('hidden');
   $('#btn-back').classList.remove('hidden');
-  $('#game').classList.remove('hidden');
   G = TW.createGame(names());
-  TW.startGame(G);
+  G.phase = 'banning';
+  _prevHp[0] = _prevHp[1] = -1;
+  $('#game').classList.add('hidden');
+  $('#ban').classList.remove('hidden');
+  renderBan();
+}
+
+// 盲ban 界面
+function renderBan() {
+  const grid = $('#ban-grid');
+  const sub = $('#ban-sub');
+  const skillList = () => Object.keys(SK.SKILLS).flatMap((d) => SK.SKILLS[d].map((s) => ({ ...s, digit: d })));
+
+  if (cfg.mode === 'ai') {
+    // AI 观战：双方 AI 自动禁用
+    sub.textContent = '🤖 AI 观战：双方 AI 自动禁用…';
+    grid.innerHTML = '';
+    TW.submitBan(G, 0, AI.chooseBan(G, 0, 'hard'));
+    TW.submitBan(G, 1, AI.chooseBan(G, 1, 'hard'));
+    afterBan();
+    return;
+  }
+  if (cfg.mode === 'pve') {
+    if (G.banPicks[0]) {
+      sub.textContent = '✅ 你已选择禁用，AI 正在禁用…';
+      grid.innerHTML = '';
+      if (G.phase === 'banning') TW.submitBan(G, 1, AI.chooseBan(G, 1, cfg.diff));
+      afterBan();
+      return;
+    }
+    sub.textContent = '🔒 盲ban：从全部技能里选 1 个禁用（AI 也同时选，选完公示）。';
+  } else {
+    // pvp 双人热座：先玩家1，后玩家2（盲ban：选完前不展示对方的选择）
+    const picker = G.banPicks[0] ? 1 : 0;
+    if (G.banPicks[0] && G.banPicks[1]) { afterBan(); return; }
+    sub.textContent = `🔒 盲ban：玩家${picker + 1} 从全部技能里选 1 个禁用（选完才公示）。`;
+    const list = skillList();
+    grid.innerHTML = list.map((s) => `<button class="ban-skill" data-ban="${s.id}" title="${esc(s.desc)}"><span class="ban-cost">${s.digit}$</span><span class="ban-name">${esc(s.name)}</span><span class="ban-desc">${esc(s.desc)}</span></button>`).join('');
+    grid.querySelectorAll('[data-ban]').forEach((b) => { b.onclick = () => { TW.submitBan(G, picker, b.dataset.ban); renderBan(); }; });
+    return;
+  }
+  const list = skillList();
+  grid.innerHTML = list.map((s) => `<button class="ban-skill" data-ban="${s.id}" title="${esc(s.desc)}"><span class="ban-cost">${s.digit}$</span><span class="ban-name">${esc(s.name)}</span><span class="ban-desc">${esc(s.desc)}</span></button>`).join('');
+  grid.querySelectorAll('[data-ban]').forEach((b) => { b.onclick = () => { TW.submitBan(G, 0, b.dataset.ban); renderBan(); }; });
+}
+
+function afterBan() {
+  if (G.phase !== 'playing') return;
+  $('#ban').classList.add('hidden');
+  $('#game').classList.remove('hidden');
   render();
   scheduleAI();
 }
@@ -77,8 +126,8 @@ function buffChips(p) {
   if (p.cuidu) push('cuidu', '淬毒', '攻击附带1毒伤');
   if (p.dummy.alive) push('dummy', '假人', `${p.dummy.hp}血`);
   if (p.inDummyCombat) push('dummyC', '假人作战', '灵魂在假人中');
-  if (p.qibu.stage === 1) push('qibu', '七步', '每回合结束-4');
-  if (p.qibu.stage === 2) push('qibu', '七步', '每回合结束-3');
+  if (p.qibu.stage === 1) push('qibu', '七步', '每回合结束-3');
+  if (p.qibu.stage === 2) push('qibu', '七步', '每回合结束-2');
   if (p.duming.active) push('duming', '赌命', `剩${p.duming.turnsLeft}回合`);
   if (p.freeze > 0) push('freeze', '冰封', `${p.freeze}回合`);
   if (p.chaofeng.pending) push('chaofeng', '嘲讽', '待触发');
@@ -186,11 +235,15 @@ function renderControls() {
     return;
   }
   const digit = turnP.skill;
-  const afford = turnP.energy >= digit;
+  const locked = (turnP.streak || 0) >= 24;
+  const afford = turnP.energy >= digit && !locked;
   const skills = SK.SKILLS[digit] || [];
-  let html = `<div class="prompt">${ctrlNote}技能手 = <b>${digit}</b>，费用 <b>${digit}$</b>（当前 ${turnP.energy}$）${G.chainCount >= 3 ? `，数字连携 <b>${G.chainCount}</b> 次！` : ''}</div>`;
+  let html = `<div class="prompt">${ctrlNote}技能手 = <b>${digit}</b>，费用 <b>${digit}$</b>（当前 ${turnP.energy}$）${locked ? ' <b style="color:#ff5d73">⚠ 连续出技能已达24次，只能空过</b>' : ''}${G.chainCount >= 3 ? `，数字连携 <b>${G.chainCount}</b> 次！` : ''}</div>`;
   html += '<div class="skill-grid">';
-  skills.forEach((sk, i) => { html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`); });
+  skills.forEach((sk, i) => {
+    if (G.banned && G.banned.indexOf(sk.id) >= 0) return; // 被禁技能不显示
+    html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`);
+  });
   html += '</div><button id="btn-pass" class="pass-btn">空过（结束回合）</button>';
   el.innerHTML = html;
   el.querySelectorAll('[data-skill]').forEach((b) => { b.onclick = () => clickSkill(Number(b.dataset.skill)); });

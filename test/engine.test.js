@@ -3,7 +3,7 @@
 // 注意：释放技能会先扣能量（费用=技能手数字）；非"再次行动"技能释放后回合立即换边；
 //       每回合必须先"相加"（或处于 awaitAction）才能行动/空过。
 const assert = require('assert');
-const { createGame, startGame, addHand, actSkill, passTurn } = require('../engine');
+const { createGame, startGame, submitBan, addHand, actSkill, passTurn } = require('../engine');
 const { SKILLS, solve24 } = require('../skills');
 
 let passed = 0;
@@ -137,23 +137,23 @@ test('98K连携：114514秒杀无视假人', () => {
   assert.ok(o.hp <= 0);
 });
 
-test('七步：-4→净化降为-3→净化解除；不触发无敌', () => {
+test('七步：-3→净化降为-2→净化解除；不触发无敌', () => {
   const g = mk(); const first = g.turn;
   const p = g.players[first], o = g.players[1 - first];
   p.hp = 20; p.qibu = { stage: 1, owner: 1 - first }; p.wudi = true;
-  skipTurn(g); // p回合结束 → -4（不触发无敌）
-  assert.strictEqual(p.hp, 16);
+  skipTurn(g); // p回合结束 → -3（不触发无敌）
+  assert.strictEqual(p.hp, 17);
   assert.strictEqual(p.wudi, true); // 无敌保留
   skipTurn(g); // o回合
   assert.strictEqual(g.turn, first);
-  force(g, 0); act(g, 'jinghua'); // p净化：+1血，七步→-3；回合结束再-3
+  force(g, 0); act(g, 'jinghua'); // p净化：+1血，七步→-2；回合结束再-2
   assert.strictEqual(p.qibu.stage, 2);
-  assert.strictEqual(p.hp, 14); // 16+1-3
+  assert.strictEqual(p.hp, 16); // 17+1-2
   skipTurn(g); // o回合
   assert.strictEqual(g.turn, first);
   force(g, 0); act(g, 'jinghua'); // 解除；回合结束不再扣
   assert.strictEqual(p.qibu.stage, 0);
-  assert.strictEqual(p.hp, 15); // 14+1
+  assert.strictEqual(p.hp, 17); // 16+1
 });
 
 test('冰封：只+1能量、跳过相加与行动', () => {
@@ -342,18 +342,28 @@ test('尤里：控制回合的相加按控制者的手结算', () => {
   assert.strictEqual(cur(g).skill, o.skill);
 });
 
-test('公平正义：同一buff扣2层', () => {
+test('公平正义：默认去1层', () => {
   const g = mk(); const p = cur(g), o = opp(g);
   o.huxi = 3;
   p.energy = 11;
+  force(g, 7); act(g, 'gongping', { buffIdx: 0 }); // 未跳到7 → 去1层
+  assert.strictEqual(o.huxi, 2);
+});
+
+test('公平正义：技能手跳到7时去2层', () => {
+  const g = mk(); const p = cur(g), o = opp(g);
+  o.huxi = 3;
+  p.energy = 11;
+  p.jumped7 = true; // 模拟"通过数字跳到7"
   force(g, 7); act(g, 'gongping', { buffIdx: 0 });
   assert.strictEqual(o.huxi, 1); // 3层 → 扣2层 → 剩1层
 });
 
-test('公平正义：两个buff各扣1层', () => {
+test('公平正义：跳到7时两个buff各扣1层', () => {
   const g = mk(); const p = cur(g), o = opp(g);
   o.wudi = true; o.qianghua = true;
   p.energy = 11;
+  p.jumped7 = true;
   force(g, 7); act(g, 'gongping', { buffIdx: 0 }); // 选中无敌
   assert.strictEqual(o.wudi, false);
   assert.strictEqual(o.qianghua, false); // 补足2层：另一个buff也被扣1层
@@ -363,17 +373,17 @@ test('公平正义：不足2层有多少去多少', () => {
   const g = mk(); const p = cur(g), o = opp(g);
   o.wudi = true;
   p.energy = 11;
+  p.jumped7 = true;
   force(g, 7); act(g, 'gongping', { buffIdx: 0 });
   assert.strictEqual(o.wudi, false); // 只有1层 → 只去1层
 });
 
-test('公平正义：优先选中buff，其余补充', () => {
+test('公平正义：不再+1$', () => {
   const g = mk(); const p = cur(g), o = opp(g);
-  o.shuangbei = 1; o.huxi = 1;
-  p.energy = 11;
-  force(g, 7); act(g, 'gongping', { buffIdx: 0 }); // 选中双倍圣水（各1层）
-  assert.strictEqual(o.shuangbei, 0);
-  assert.strictEqual(o.huxi, 0); // 双倍圣水只有1层，呼吸回血补1层
+  o.wudi = true;
+  p.energy = 8;
+  force(g, 7); act(g, 'gongping', { buffIdx: 0 });
+  assert.strictEqual(p.energy, 1); // 8-7，无 +1$
 });
 
 test('识破：互换本体与假人血量再打1伤', () => {
@@ -419,6 +429,39 @@ test('能量不足无法释放技能', () => {
   const r = actSkill(g, 0);
   assert.ok(r && r.err);
   assert.strictEqual(g.step, 'awaitAction'); // 状态不变
+});
+
+test('盲ban：双方选完公示并禁用（可重复）', () => {
+  const g = createGame(['A', 'B']);
+  g.phase = 'banning';
+  assert.strictEqual(submitBan(g, 0, 'jiubaK').ok, true);
+  assert.strictEqual(g.phase, 'banning'); // 未双选完不开局
+  assert.strictEqual(submitBan(g, 1, 'jiubaK').ok, true); // 可重复
+  assert.strictEqual(g.phase, 'playing');
+  assert.deepStrictEqual(g.banned, ['jiubaK']);
+  // 被禁技能不可用
+  g.step = 'awaitAction'; cur(g).skill = 6; cur(g).energy = 9;
+  const idx = SKILLS['6'].findIndex((s) => s.id === 'jiubaK');
+  const r = actSkill(g, idx);
+  assert.ok(r && r.err && /禁用/.test(r.err));
+});
+
+test('连出技能上限：24次后只能空过，对方出技能才解锁', () => {
+  const g = mk(); const first = g.turn;
+  const p = g.players[first], o = g.players[1 - first];
+  p.streak = 24; p.energy = 11;
+  add(g, 0); // p 相加进入 awaitAction
+  let r = actSkill(g, 0); // 第25次 → 被拒
+  assert.ok(r && r.err && /只能空过/.test(r.err));
+  assert.strictEqual(passTurn(g).ok, true); // 只能空过
+  assert.strictEqual(p.streak, 24); // 空过不清零
+  // o 的回合：o 放一个技能 → p 解锁
+  assert.strictEqual(g.turn, 1 - first);
+  o.energy = 11;
+  add(g, 0);
+  r = actSkill(g, 0);
+  assert.ok(!r || !r.err); // o 能正常出技能
+  assert.strictEqual(p.streak, 0); // 对方出技能后 p 解锁
 });
 
 console.log(`\n通过 ${passed} 项测试${process.exitCode ? '（有失败）' : ''}`);

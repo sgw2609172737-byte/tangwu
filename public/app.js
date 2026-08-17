@@ -114,9 +114,11 @@ function render() {
   }
   if (!state) return;
   const inWaiting = state.phase === 'waiting';
+  const inBan = state.phase === 'banning';
   $('#lobby').classList.add('hidden');
   $('#waiting').classList.toggle('hidden', !inWaiting);
-  $('#game').classList.toggle('hidden', inWaiting);
+  $('#ban').classList.toggle('hidden', !inBan);
+  $('#game').classList.toggle('hidden', inWaiting || inBan);
 
   if (inWaiting) {
     $('#bigcode').textContent = state.roomCode;
@@ -125,7 +127,35 @@ function render() {
     $('#invite-link').textContent = link;
     return;
   }
+  if (inBan) { renderBan(); return; }
   renderGame();
+}
+
+// 盲ban 界面：从全部技能里挑一个禁用
+function renderBan() {
+  const myIdx = me.idx;
+  const picked = state.banPicks && state.banPicks[myIdx];
+  const sub = $('#ban-sub');
+  const grid = $('#ban-grid');
+  if (picked) {
+    sub.textContent = '✅ 你已选择禁用，等待对方…（都选完后公示）';
+    grid.innerHTML = '<div class="wait-msg">⏳ 等待对方禁用…</div>';
+    return;
+  }
+  sub.textContent = '🔒 盲ban：从全部技能里选 1 个禁用（双方同时选、可重复，都选完公示）。';
+  const skills = [];
+  for (const d of Object.keys(state.catalog)) {
+    for (const s of state.catalog[d]) skills.push({ ...s, digit: d });
+  }
+  grid.innerHTML = skills.map((s) => `
+    <button class="ban-skill theme-${(SKILL_ART[s.id] || SKILL_ART._def).theme}" data-ban="${s.id}" title="${esc(s.desc)}">
+      <span class="ban-cost">${s.digit}$</span>
+      <span class="ban-name">${esc(s.name)}</span>
+      <span class="ban-desc">${esc(s.desc)}</span>
+    </button>`).join('');
+  grid.querySelectorAll('[data-ban]').forEach((b) => {
+    b.onclick = () => send({ type: 'ban', skillId: b.dataset.ban });
+  });
 }
 
 function hpWidth(hp) { return Math.max(0, Math.min(100, (hp / 30) * 100)); }
@@ -243,11 +273,13 @@ function renderControls(actor) {
   }
   // awaitAction（注意：动作用的是出招者 turnP 的技能手/费用，不是控制者的）
   const digit = turnP.skill;
-  const afford = turnP.energy >= digit;
+  const locked = (turnP.streak || 0) >= 24; // 连出技能上限
+  const afford = turnP.energy >= digit && !locked;
   const skills = state.catalog[digit] || [];
-  let html = `<div class="prompt">${ctrlNote}技能手 = <b>${digit}</b>，费用 <b>${digit}$</b>（当前 ${turnP.energy}$）${state.chainCount >= 3 ? `，数字连携 <b>${state.chainCount}</b> 次！` : ''}</div>`;
+  let html = `<div class="prompt">${ctrlNote}技能手 = <b>${digit}</b>，费用 <b>${digit}$</b>（当前 ${turnP.energy}$）${locked ? ' <b style="color:#ff5d73">⚠ 连续出技能已达24次，只能空过</b>' : ''}${state.chainCount >= 3 ? `，数字连携 <b>${state.chainCount}</b> 次！` : ''}</div>`;
   html += '<div class="skill-grid">';
   skills.forEach((sk, i) => {
+    if (state.banned && state.banned.indexOf(sk.id) >= 0) return; // 被禁技能不显示
     html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`);
   });
   html += `</div><button id="btn-pass" class="pass-btn">空过（结束回合）</button>`;
