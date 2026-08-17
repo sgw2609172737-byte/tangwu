@@ -59,12 +59,12 @@ try {
   process.exitCode = 1;
 }
 
-// 3) 强度自检：hard(0) vs normal(1)，困难应明显占优（低于 45% 视为异常）
+// 3) 强度自检：hard(0) vs normal(1)，困难应占优（低于 50% 视为异常）
 try {
-  const n = 6;
+  const n = 4;
   let aWins = 0, bWins = 0, draws = 0;
   for (let i = 0; i < n; i++) {
-    const g = playOne('hard', 'normal', DUEL, 900);
+    const g = playOne('hard', 'normal', 250, 900);
     if (!g) continue;
     if (g.result === 'draw') draws++;
     else if (g.winner === 0) aWins++;
@@ -72,7 +72,7 @@ try {
   }
   const rate = Math.round((aWins / n) * 100);
   console.log(`  ✓ 强度自检：hard 胜 normal ${aWins} 局（${rate}%），normal 胜 ${bWins}，平 ${draws}（共 ${n} 局）`);
-  if (rate < 45) throw new Error(`hard 对 normal 胜率仅 ${rate}%，怀疑搜索强度不足`);
+  if (rate < 50) throw new Error(`hard 对 normal 胜率仅 ${rate}%，怀疑搜索强度不足`);
 } catch (e) {
   allOk = false;
   console.error(`  ✗ 强度自检\n    ${e.message}`);

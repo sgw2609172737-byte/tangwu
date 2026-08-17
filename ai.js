@@ -45,36 +45,51 @@
     else if (a.type === 'pass') ENG.passTurn(g);
   }
 
-  // 评估函数：从 aiIdx 视角给局面打分（越高越好）——激进型：追杀、抢伤、少囤积
+  // 评估函数：从 aiIdx 视角给局面打分（越高越好）——激进型（轻量，不含战术检测，保证搜索深度）
   function evalGame(g, aiIdx) {
     if (g.over) {
       if (g.result === 'draw') return 0;
       return g.winner === aiIdx ? 100000 : -100000;
     }
-    const me = g.players[aiIdx], op = g.players[1 - aiIdx];
+    const me = g.players[aiIdx], o = g.players[1 - aiIdx];
     let s = 0;
-    const hpD = me.hp - op.hp;
+    const hpD = me.hp - o.hp;
     s += hpD * 9;                                   // 血量差（最重要）
-    if (op.hp <= 10) s += (10 - op.hp) * 10;        // 斩杀逼近：对方进斩杀线就抢
+    if (o.hp <= 10) s += (10 - o.hp) * 10;          // 斩杀逼近：对方进斩杀线就抢
     if (me.hp <= 10) s -= (10 - me.hp) * 10;        // 自己危险时优先保命
-    s += (me.energy - op.energy) * 1.2;             // 费用差（权重调低，避免囤积）
-    s += (me.cumulativeDmg - op.cumulativeDmg) * 1.5; // 累计伤害差（鼓励持续压制）
+    s += (me.energy - o.energy) * 1.2;              // 费用差（权重调低，避免囤积）
+    s += (me.cumulativeDmg - o.cumulativeDmg) * 1.5; // 累计伤害差（鼓励持续压制）
     if (me.dummy.alive) s += 10;                    // 假人 = 第二条命
-    if (op.dummy.alive) s -= 10;
-    const posOf = (p) => (p.shuangbei || 0) * 5 + (p.huxi || 0) * 6 + (p.qianghua ? 4 : 0)
-      + (p.wudi ? 7 : 0) + (p.jingji ? 3 : 0) + (p.yingneng.active ? 3 : 0)
-      + (p.bishi ? 3 : 0) + (p.cuidu ? 6 : 0) + (p.tanghua ? 2 : 0);
-    s += posOf(me) - posOf(op);                     // 正面 buff 差（含层数）
+    if (o.dummy.alive) s -= 10;
+    const posOf = (pl) => (pl.shuangbei || 0) * 5 + (pl.huxi || 0) * 6 + (pl.qianghua ? 4 : 0)
+      + (pl.wudi ? 7 : 0) + (pl.jingji ? 3 : 0) + (pl.yingneng.active ? 3 : 0)
+      + (pl.bishi ? 3 : 0) + (pl.cuidu ? 6 : 0) + (pl.tanghua ? 2 : 0);
+    s += posOf(me) - posOf(o);                      // 正面 buff 差（含层数）
     if (me.qibu.stage > 0) s -= 12;                 // 负面状态
-    if (op.qibu.stage > 0) s += 12;
+    if (o.qibu.stage > 0) s += 12;
     if (me.duming.active) s -= 8;                   // 赌命倒计时压力
-    if (op.duming.active) s += 8;
+    if (o.duming.active) s += 8;
     if (me.freeze > 0) s -= 10;
-    if (op.freeze > 0) s += 10;
-    s += op.delayed.length * 6 - me.delayed.length * 6; // 延迟伤害
+    if (o.freeze > 0) s += 10;
+    s += o.delayed.length * 6 - me.delayed.length * 6; // 延迟伤害
     if (g.chainCount >= 2) s += 14;                 // 98K 连携威胁（鼓励攒链）
     if (g.chainCount >= 3) s += 20;
     return s;
+  }
+
+  // 战术必杀过滤器：当前玩家一步能直接斩杀 → 立即返回该动作（不进入搜索）
+  function findKill(g) {
+    if (g.over || g.step !== 'awaitAction') return null;
+    const p = g.players[g.turn];
+    if (p.energy < p.skill) return null;
+    const list = SK.SKILLS[p.skill] || [];
+    for (let i = 0; i < list.length; i++) {
+      if (!list[i].isAttack) continue;
+      const c = cloneGame(g);
+      ENG.actSkill(c, i, {});
+      if (c.over && c.winner === g.turn) return { type: 'act', skillIdx: i };
+    }
+    return null;
   }
 
   // 动作排序：对 maximize 节点先试"立即评估最好"的动作（利于 α-β 剪枝）
@@ -117,8 +132,8 @@
     const actions = legalActions(g);
     if (!actions.length) return evalGame(g, aiIdx);
     const maximize = actorOf(g) === aiIdx;
-    // 排序只在最浅 2 层做（省算力、让深度更深）；深层直接用原序
-    const list = depth >= 3 ? ordered(g, aiIdx, actions, maximize) : actions;
+    // 不排序：本游戏分支很小（≤6），排序开销远大于剪枝收益，直接原序可显著加深
+    const list = actions;
     let best = maximize ? -Infinity : Infinity;
     for (const a of list) {
       const c = cloneGame(g);
@@ -174,6 +189,9 @@
   function chooseAction(g, aiIdx, difficulty, timeMs) {
     const actions = legalActions(g);
     if (!actions.length) return null;
+    // 战术必杀：本回合一步能杀就杀（任何难度都不该放过白捡的斩杀）
+    const kill = findKill(g);
+    if (kill) return kill;
     if (difficulty === 'easy') {
       if (Math.random() < 0.5) return actions[(Math.random() * actions.length) | 0];
       return bestByEval(g, aiIdx, actions, 1);
