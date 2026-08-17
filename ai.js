@@ -88,14 +88,37 @@
     return scored.map((s) => s.a);
   }
 
-  function minimax(g, aiIdx, depth, alpha, beta, deadline) {
-    if (Date.now() > deadline) throw TIMEOUT;
-    if (g.over || depth <= 0) return evalGame(g, aiIdx);
+  // 战术延伸（quiescence）：深度耗尽但局面"热"（有人濒死且能动手）时再往下看 1 层，
+  // 避免"该杀不杀、被杀没看见"的水平线短视
+  function quiesce(g, aiIdx, deadline) {
+    if (g.over) return evalGame(g, aiIdx);
+    if (Date.now() > deadline) return evalGame(g, aiIdx);
+    const p = g.players[g.turn], o = g.players[1 - g.turn];
+    // 热局面判定：本方能放技能且对方血量可能被斩杀，或自己危险
+    const hot = (o.hp <= 14 && p.energy >= p.skill) || (p.hp <= 14 && o.energy >= o.skill);
+    if (!hot) return evalGame(g, aiIdx);
     const actions = legalActions(g);
     if (!actions.length) return evalGame(g, aiIdx);
     const maximize = actorOf(g) === aiIdx;
-    // 排序只在浅层做（省算力、让深度更深）；深层直接用原序
-    const list = depth >= 2 ? ordered(g, aiIdx, actions, maximize) : actions;
+    let best = maximize ? -Infinity : Infinity;
+    for (const a of actions) {
+      const c = cloneGame(g);
+      apply(c, a);
+      const v = evalGame(c, aiIdx);
+      best = maximize ? Math.max(best, v) : Math.min(best, v);
+    }
+    return best;
+  }
+
+  function minimax(g, aiIdx, depth, alpha, beta, deadline) {
+    if (Date.now() > deadline) throw TIMEOUT;
+    if (g.over) return evalGame(g, aiIdx);
+    if (depth <= 0) return quiesce(g, aiIdx, deadline);
+    const actions = legalActions(g);
+    if (!actions.length) return evalGame(g, aiIdx);
+    const maximize = actorOf(g) === aiIdx;
+    // 排序只在最浅 2 层做（省算力、让深度更深）；深层直接用原序
+    const list = depth >= 3 ? ordered(g, aiIdx, actions, maximize) : actions;
     let best = maximize ? -Infinity : Infinity;
     for (const a of list) {
       const c = cloneGame(g);
