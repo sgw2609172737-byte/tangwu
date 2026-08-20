@@ -264,6 +264,16 @@ function submitBan(g, playerIdx, skillId) {
 }
 
 // ---------- 玩家操作 ----------
+// 判断当前玩家在相加之后是否还能释放至少一个技能（费用不足 / 连出上限 / 全部被禁 → 不能）
+function canCastAnySkill(g, p) {
+  if (p.streak >= 24) return false;
+  if (p.energy < p.skill) return false;
+  const list = __SKILLS[p.skill] || [];
+  if (!list.length) return false;
+  if (g.banned && g.banned.length && list.every((s) => g.banned.indexOf(s.id) >= 0)) return false;
+  return true;
+}
+
 function addHand(g, choice) {
   if (g.over || g.step !== 'awaitAdd') return { err: '现在不是相加阶段' };
   const p = cur(g), o = opp(g);
@@ -273,6 +283,15 @@ function addHand(g, choice) {
   p.jumped7 = (p.skill === 7);
   g.step = 'awaitAction';
   log(g, `✋ ${p.name} 技能手与对方${choice === 0 ? '费用手' : '技能手'}（${shown}）相加：${old} → ${p.skill}`);
+  // 新功能：相加之后若无法释放任何技能，自动空过（结束回合）
+  if (!canCastAnySkill(g, p)) {
+    let reason;
+    if (p.streak >= 24) reason = '连续出技能已达24次';
+    else if (p.energy < p.skill) reason = `费用不足（${p.energy}$ < ${p.skill}$）`;
+    else reason = '当前数字的技能均已被禁用';
+    log(g, `⏭ ${p.name} 无法释放技能（${reason}），自动空过`);
+    endTurn(g);
+  }
   return { ok: true };
 }
 

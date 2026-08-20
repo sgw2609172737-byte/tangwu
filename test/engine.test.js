@@ -335,6 +335,7 @@ test('尤里：控制回合的相加按控制者的手结算', () => {
   assert.strictEqual(g.controller, first);
   const casterE = g.players[first].energy % 10; // 控制者费用手个位
   const before = o.skill;
+  o.energy = 11; // 给足费用，避免相加后自动空过
   add(g, 0); // 被控制者的技能手 + 控制者的费用手
   assert.strictEqual(o.skill, (before + casterE) % 10);
   // 行动阶段：按被控制者的技能手/费用判定（技能手=刚才相加后的值）
@@ -431,6 +432,26 @@ test('能量不足无法释放技能', () => {
   assert.strictEqual(g.step, 'awaitAction'); // 状态不变
 });
 
+test('相加后费用不足自动空过', () => {
+  const g = mk(); const first = g.turn;
+  const p = g.players[first], o = g.players[1 - first];
+  p.energy = 0; // 费用不足
+  o.skill = 8;  // 相加结果 = (1 + 8) % 10 = 9
+  add(g, 1);
+  assert.strictEqual(p.skill, 9);
+  assert.strictEqual(g.turn, 1 - first); // 自动空过，回合已换边
+  assert.ok(g.log.some((t) => /自动空过/.test(t)));
+});
+
+test('相加后费用足够不自动空过', () => {
+  const g = mk(); const first = g.turn;
+  const p = g.players[first];
+  p.energy = 11;
+  add(g, 0); // 相加结果 = (1 + 对方能量手) % 10，能量11足够
+  assert.strictEqual(g.step, 'awaitAction'); // 不空过，等待行动
+  assert.ok(!g.log.some((t) => /自动空过/.test(t)));
+});
+
 test('盲ban：双方选完公示并禁用（可重复）', () => {
   const g = createGame(['A', 'B']);
   g.phase = 'banning';
@@ -446,20 +467,18 @@ test('盲ban：双方选完公示并禁用（可重复）', () => {
   assert.ok(r && r.err && /禁用/.test(r.err));
 });
 
-test('连出技能上限：24次后只能空过，对方出技能才解锁', () => {
+test('连出技能上限：24次后相加自动空过，对方出技能才解锁', () => {
   const g = mk(); const first = g.turn;
   const p = g.players[first], o = g.players[1 - first];
   p.streak = 24; p.energy = 11;
-  add(g, 0); // p 相加进入 awaitAction
-  let r = actSkill(g, 0); // 第25次 → 被拒
-  assert.ok(r && r.err && /只能空过/.test(r.err));
-  assert.strictEqual(passTurn(g).ok, true); // 只能空过
+  add(g, 0); // p 相加后无法释放技能 → 自动空过
+  assert.strictEqual(g.turn, 1 - first); // 已换边
   assert.strictEqual(p.streak, 24); // 空过不清零
+  assert.ok(g.log.some((t) => /自动空过/.test(t)));
   // o 的回合：o 放一个技能 → p 解锁
-  assert.strictEqual(g.turn, 1 - first);
   o.energy = 11;
   add(g, 0);
-  r = actSkill(g, 0);
+  const r = actSkill(g, 0);
   assert.ok(!r || !r.err); // o 能正常出技能
   assert.strictEqual(p.streak, 0); // 对方出技能后 p 解锁
 });
