@@ -15,83 +15,88 @@ function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 // ==================== 圆润卡通数字手势（0-11） ====================
 // 画风：胶囊手指 + 椭圆手掌 + 圆润拇指，参考中文数字手势（0空拳 1食指 2V 3中三指
 // 4四指 5张开 6拇小 7捏合 8枪L 9食指弯钩 10空心零(拇食指成环) 11食指+小拇指）
+// ==================== 圆润卡通数字手势 v3（0-11，从头重绘） ====================
+// 画法：双层线段（描边线在下、皮肤线在上→处处圆滑无缝），两段式手指（近节粗、末节细+指甲），
+// C形弯曲拇指，梨形手掌。姿势：0空拳 1食指 2V 3中三指 4四指 5张开 6拇小 7捏合 8枪L
+// 9食指弯钩 10空心零(拇食指成环) 11食指+小指
 var handSVG = (() => {
-  const LINE = '#54331f', SKIN = '#ffdfae', SKIN2 = '#ffc98b', SHADE = '#f2ab78';
+  const LINE = '#6d4726', SKIN = '#ffd9a3', SH = '#f2a870', NAIL = '#fff2da';
   const f = (n) => Math.round(n * 10) / 10;
-  const SK = 'url(#twSkin)';
 
-  // 手指/拇指胶囊：基点(x,y)，角度 ang（0=竖直向上，正=顺时针向右偏），长 len，宽 w
-  function cap(x, y, len, w, ang) {
-    return '<rect x="' + f(-w / 2) + '" y="' + f(-len) + '" width="' + f(w) + '" height="' + f(len) + '" rx="' + f(w / 2) + '" fill="' + SK + '" stroke="' + LINE + '" stroke-width="2" transform="translate(' + f(x) + ' ' + f(y) + ') rotate(' + f(ang) + ')"/>';
+  // 双层描边曲线（拇指/弯指）：深棕轮廓在下、肤色在上，端点圆头
+  function pth(d, w) {
+    return '<path d="' + d + '" fill="none" stroke="' + LINE + '" stroke-width="' + f(w + 2.6) + '" stroke-linecap="round"/>'
+      + '<path d="' + d + '" fill="none" stroke="' + SKIN + '" stroke-width="' + f(w) + '" stroke-linecap="round"/>';
   }
-  function bump(x, y, r) {
-    return '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + f(r || 5.2) + '" fill="' + SK + '" stroke="' + LINE + '" stroke-width="2"/>';
+  // 伸出的手指：竖直胶囊绕指根(bx,by)旋转 tilt 度，指尖带指甲
+  function ext(bx, by, tilt, tipY, w) {
+    const h = by + 5 - tipY;
+    return '<g transform="rotate(' + tilt + ' ' + bx + ' ' + by + ')">'
+      + '<rect x="' + f(bx - w / 2) + '" y="' + f(tipY) + '" width="' + f(w) + '" height="' + f(h) + '" rx="' + f(w / 2) + '" fill="' + SKIN + '" stroke="' + LINE + '" stroke-width="2"/>'
+      + '<ellipse cx="' + f(bx) + '" cy="' + f(tipY + w * 0.52) + '" rx="' + f(w * 0.27) + '" ry="' + f(w * 0.34) + '" fill="' + NAIL + '" stroke="' + LINE + '" stroke-width="1.1"/></g>';
   }
-  const fingerSet = (arr) => arr.map(function (a) { return cap(a[0], a[1], a[2], a[3], a[4]); }).join('');
-  const bumps = (arr) => arr.map(function (a) { return bump(a[0], a[1]); }).join('');
+  // 收拢的指节：贴着掌顶排列的小胶囊（拳面）
+  function fold(bx, by, tilt, w) {
+    w = w || 9.2;
+    return '<g transform="rotate(' + tilt + ' ' + bx + ' ' + by + ')">'
+      + '<rect x="' + f(bx - w / 2) + '" y="' + f(by - 9.5) + '" width="' + f(w) + '" height="' + f(13) + '" rx="' + f(w / 2) + '" fill="' + SKIN + '" stroke="' + LINE + '" stroke-width="2"/></g>';
+  }
+  // 平滑曲线拇指尖的指甲（沿指尖方向）
+  const nail = (x, y, ang) => '<ellipse cx="' + f(x) + '" cy="' + f(y) + '" rx="2.7" ry="3.2" fill="' + NAIL + '" stroke="' + LINE + '" stroke-width="1.1" transform="rotate(' + f(ang) + ' ' + f(x) + ' ' + f(y) + ')"/>';
 
-  // 手掌 + 右侧浅阴影 + 手腕
-  function palm() {
-    return '<ellipse cx="50" cy="62" rx="21" ry="22.5" fill="' + SK + '" stroke="' + LINE + '" stroke-width="2"/>'
-      + '<ellipse cx="55.5" cy="65" rx="12.5" ry="15.5" fill="' + SHADE + '" opacity="0.26"/>'
-      + '<rect x="39.5" y="82" width="21" height="13" rx="6" fill="' + SKIN2 + '" stroke="' + LINE + '" stroke-width="2"/>';
+  // 手腕 + 手掌（整块圆润 blob）+ 掌面阴影
+  function base() {
+    return '<rect x="42.5" y="84" width="15" height="13" rx="6.5" fill="' + SKIN + '" stroke="' + LINE + '" stroke-width="2"/>'
+      + '<path d="M31.5 58 C31.5 51.5 36 48.2 42 47 C45.5 46.3 48 46 50 46 C52 46 54.5 46.3 58 47 C64 48.2 68.5 51.5 68.5 58 C68.5 66 68 71 66.8 76 C65.2 82.8 59 86.5 50 86.5 C41 86.5 34.8 82.8 33.2 76 C32 71 31.5 66 31.5 58 Z" fill="' + SKIN + '" stroke="' + LINE + '" stroke-width="2"/>'
+      + '<ellipse cx="57.5" cy="68" rx="7.5" ry="10.5" fill="' + SH + '" opacity="0.22"/>';
   }
-  // 掌纹（低调）
-  function creases() {
-    return '<path d="M41 57 Q50 61 59 56.5" stroke="' + LINE + '" stroke-width="1.6" fill="none" opacity="0.32"/>'
-      + '<path d="M43 69 Q50.5 72 58 68.5" stroke="' + LINE + '" stroke-width="1.6" fill="none" opacity="0.26"/>';
-  }
+  // 收拢的拇指：横贴掌根的圆头曲线
+  const tuck = () => pth('M32.5 70.5 C38.5 73 45 74.5 51 74.8', 11);
 
-  const KNUCK = [[36, 41.5], [45.5, 40], [55, 39.8], [64, 41]];   // 拳面四指节
-  const F4 = [                                                     // 伸出四指（左→右：小→食）
-    [35, 45, 26, 10, -9],
-    [44.5, 43, 33, 10.5, -2.5],
-    [54, 42.5, 36, 11, 2.5],
-    [63.5, 45, 31, 11, 9],
-  ];
-  const THUMB_TUCK = bump(29.5, 67, 6.2);                          // 拇指收在掌侧
-  const THUMB_OUT = (a) => cap(30.5, 69, 23, 12, a);               // 拇指伸出
-
+  // 指根坐标（左→右）：pinky 37.5,53 / ring 45.8,50.5 / mid 54.2,50 / index 62.8,52.5
   const POSES = {
-    // 0 空拳：四指节 + 拇指横抱拳底
-    0: () => palm() + bumps(KNUCK) + cap(37, 71.5, 25, 11.5, 96) + creases(),
+    // 0 空拳：四指全收 + 拇指横贴
+    0: () => base() + fold(37.5, 53, -14) + fold(45.8, 50.5, -5) + fold(54.2, 50, 4) + fold(63.5, 52.5, 12) + tuck(),
     // 1 食指
-    1: () => fingerSet([[63.5, 45, 33, 11, 3]]) + palm() + bumps([[54, 40.5], [45, 41.8], [36, 43.5]]) + THUMB_TUCK + creases(),
-    // 2 V（食指+中指）
-    2: () => fingerSet([[64, 45, 30, 11, 14], [54.5, 44, 35, 11, -9]]) + palm() + bumps([[45, 42.5], [36, 44.5]]) + THUMB_TUCK + creases(),
-    // 3 中三指（食/中/环），拇指小指收
-    3: () => fingerSet([[65, 45.5, 30, 11, 12], [55, 43.5, 36, 11, 2], [45, 43.5, 32, 10.5, -8]]) + palm() + bumps([[36, 45], [29.5, 66.5]]) + creases(),
+    1: () => base() + fold(37.5, 53, -14) + fold(45.8, 50.5, -5) + fold(54.2, 50, 4) + ext(62.8, 52.5, 3, 20, 9.6) + tuck(),
+    // 2 V（食指 + 中指张开）
+    2: () => base() + fold(37.5, 53, -14) + fold(45.8, 50.5, -5) + ext(62.8, 52.5, 13, 21, 9.6) + ext(54.2, 50, -11, 17, 9.8) + tuck(),
+    // 3 中三指
+    3: () => base() + fold(37.5, 53, -14) + ext(62.8, 52.5, 8, 20, 9.6) + ext(54.2, 50, 0, 16, 9.8) + ext(45.8, 50.5, -8, 19, 9.4) + tuck(),
     // 4 四指
-    4: () => fingerSet(F4) + palm() + THUMB_TUCK + creases(),
-    // 5 张开（+拇指）
-    5: () => fingerSet(F4) + palm() + THUMB_OUT(-44) + creases(),
-    // 6 拇指+小指
-    6: () => fingerSet([[35, 45, 27, 10, -4]]) + palm() + bumps([[44.5, 42.5], [54, 41.5], [63.5, 42.5]]) + THUMB_OUT(-48) + creases(),
-    // 7 捏合（拇指+食指对捏，余指收）
-    7: () => palm() + bumps([[42.5, 54], [51, 53], [59, 52.5]]) + cap(33.5, 66, 27, 11, 24) + cap(62.5, 64.5, 27, 11, -22) + creases(),
-    // 8 枪L（拇指向上 + 食指指向右）
-    8: () => palm() + bumps([[36.5, 46], [42.5, 42.5]]) + cap(50, 52, 25, 11, -3) + cap(55, 57.5, 28, 10.5, 90) + creases(),
-    // 9 食指弯钩（上段伸出、下段下勾）
-    9: () => palm() + bumps([[36, 41.5], [45.5, 40], [55, 39.8]]) + cap(59, 46, 18, 11, -10) + cap(55.9, 28.3, 15, 11, 122) + bump(30, 66, 6) + creases(),
-    // 10 空心零（拇指+食指指尖成环，中三指伸出）
-    10: () => fingerSet([[50.5, 42.5, 34, 11, 2], [42, 43, 31, 10.5, -4.5], [34, 45, 25, 10, -11]])
-      + palm() + cap(46, 65, 25, 11, 44)
-      + '<circle cx="66" cy="40" r="8.5" fill="none" stroke="' + LINE + '" stroke-width="12"/>'
-      + '<circle cx="66" cy="40" r="8.5" fill="none" stroke="' + SKIN + '" stroke-width="8"/>'
-      + creases(),
-    // 11 食指+小指
-    11: () => fingerSet([[64, 45, 31, 11, 8], [35, 45, 26, 10, -10]]) + palm() + bumps([[54, 41], [44.5, 42.5]]) + THUMB_TUCK + creases(),
+    4: () => base() + ext(37.5, 53, -9, 26, 8.6) + ext(45.8, 50.5, -4, 18, 9.4) + ext(54.2, 50, 1, 16, 9.8) + ext(62.8, 52.5, 6, 20, 9.6) + tuck(),
+    // 5 张开（五指）
+    5: () => base() + ext(37.5, 53, -11, 26, 8.6) + ext(45.8, 50.5, -5, 18, 9.4) + ext(54.2, 50, 1.5, 16, 9.8) + ext(62.8, 52.5, 8, 20, 9.6)
+      + pth('M33.5 66 C31 57 27 49 26 41', 10.5) + nail(26.1, 44.2, -7),
+    // 6 拇指 + 小指
+    6: () => base() + fold(45.8, 50.5, -5) + fold(54.2, 50, 4) + fold(63.5, 52.5, 12) + ext(37.5, 53, -5, 26, 8.6)
+      + pth('M33.5 64 C31 56 27.5 49.5 24.5 44', 11) + nail(24.7, 47.3, -15),
+    // 7 捏合（拇指横压在弯上来的食指上面，指尖在左侧相触，其余收拢）
+    7: () => base() + fold(37.5, 53, -14) + fold(45.8, 50.5, -5) + fold(54.2, 50, 4)
+      + pth('M62.8 53 C62 48 58.5 43.5 52.5 41 C47.5 39 42 37.2 37 35.5', 9.4)
+      + pth('M58 44 C57.5 37 54 32 47.5 30.5 C43 29.5 38 30.2 35 31.5', 10)
+      + '<circle cx="36.2" cy="33.5" r="4.8" fill="' + SKIN + '"/>',
+    // 8 枪 L（食指向上，拇指横伸向左）
+    8: () => base() + fold(37.5, 53, -14) + fold(45.8, 50.5, -5) + fold(54.2, 50, 4) + ext(62.8, 52.5, -6, 19, 9.6)
+      + pth('M34 63 C28.5 61.5 24 60.2 20 58.8', 10),
+    // 9 食指弯钩
+    9: () => base() + fold(37.5, 53, -14) + fold(45.8, 50.5, -5) + fold(54.2, 50, 4)
+      + pth('M62.8 53 C61.5 42 60 31 56 25.5 C51 19 43 20.5 42 26.5', 9.4) + tuck(),
+    // 10 空心零（拇指与食指围成圆环）
+    10: () => base() + fold(37.5, 53, -14) + fold(45.8, 50.5, -5) + fold(54.2, 50, 4)
+      + '<circle cx="63.5" cy="31" r="8.4" fill="none" stroke="' + LINE + '" stroke-width="11.6"/>'
+      + '<circle cx="63.5" cy="31" r="8.4" fill="none" stroke="' + SKIN + '" stroke-width="8.4"/>'
+      + pth('M34 66 C36 54 42 43 52 38', 10)
+      + pth('M62.8 53 C63 48 63.5 44 63.5 41.5', 9.4),
+    // 11 食指 + 小指
+    11: () => base() + fold(45.8, 50.5, -5) + fold(54.2, 50, 4) + ext(62.8, 52.5, 7, 20, 9.6) + ext(37.5, 53, -8, 26, 8.6) + tuck(),
   };
 
   return function handSVG(n) {
     const pose = POSES[n] || POSES[0];
-    return '<svg class="hand" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">'
-      + '<defs><linearGradient id="twSkin" x1="0" y1="0" x2="0.9" y2="1">'
-      + '<stop offset="0" stop-color="' + SKIN + '"/><stop offset="1" stop-color="' + SKIN2 + '"/>'
-      + '</linearGradient></defs>' + pose() + '</svg>';
+    return '<svg class="hand" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">' + pose() + '</svg>';
   };
 })();
-
 // ==================== 技能卡牌插画 ====================
 // 每个技能一张独立 SVG 插画：中心徽章（描边+平涂+辉光）+ 斜向光束 + 星光粒子
 const SKILL_ART = (() => {

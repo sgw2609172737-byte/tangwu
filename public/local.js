@@ -199,13 +199,16 @@ function hideThinking() { const el = $('#ai-thinking'); if (el) el.classList.add
 
 function renderLog() {
   const el = $('#log');
-  const items = G.log.slice(-150);
-  el.innerHTML = items.map((t) => {
+  const items = G.log.slice(-80); // 只显示最近 80 条
+  const cnt = document.querySelector('#log-count');
+  if (cnt) cnt.textContent = items.length + ' 条';
+  el.innerHTML = items.map((t, i) => {
     let cls = '';
     if (/伤害|秒杀|击败|败北|清零|倒下/.test(t)) cls = 'dmg';
     else if (/回复|加血|\+\d+血|治疗/.test(t)) cls = 'heal';
     else if (/费用/.test(t)) cls = 'nrg';
     else if (/生效|就绪|召唤|控制|冰封|剧毒|中毒|强化|互换/.test(t)) cls = 'sys';
+    if (i === items.length - 1) cls += ' latest'; // 最新一条高亮
     return `<div class="log-line ${cls}">${esc(t)}</div>`;
   }).join('');
   el.scrollTop = el.scrollHeight;
