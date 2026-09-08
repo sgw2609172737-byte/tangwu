@@ -7,249 +7,89 @@ function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 // 画法：整只手一条连续外轮廓（指尖弧→指缝谷→掌缘→腕一笔连成），无拼接缝
 // 深棕描边 + 肤色平涂 + 指尖指甲 + 指节线 + 掌纹 + 单侧赛璐璐阴影
 // 姿势按中国标准单手势：0空拳 1食 2V 3三指 4四指 5张开 6拇小 7捏合 8枪(L) 9钩 10实拳 11食小
+'use strict';
+// 唐五共享 UI 组件：手势 SVG + 技能卡牌（index.html 先于 app.js 加载）
+
+function esc(s) { return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+
+// ==================== 圆润卡通数字手势（0-11） ====================
+// 画风：胶囊手指 + 椭圆手掌 + 圆润拇指，参考中文数字手势（0空拳 1食指 2V 3中三指
+// 4四指 5张开 6拇小 7捏合 8枪L 9食指弯钩 10空心零(拇食指成环) 11食指+小拇指）
 var handSVG = (() => {
-  const LINE = '#54331f', SKIN = '#ffdfae', SKIN2 = '#ffc891', SHADE = '#f2ab78', CREASE = '#e09a63', NAIL = '#fff5e8';
+  const LINE = '#54331f', SKIN = '#ffdfae', SKIN2 = '#ffc98b', SHADE = '#f2ab78';
   const f = (n) => Math.round(n * 10) / 10;
-  const rad = (d) => d * Math.PI / 180;
-  const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
-  const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
-  const mul = (a, s) => ({ x: a.x * s, y: a.y * s });
-  const unit = (a) => { const l = Math.hypot(a.x, a.y) || 1; return { x: a.x / l, y: a.y / l }; };
-  const perp = (a) => ({ x: -a.y, y: a.x });
+  const SK = 'url(#twSkin)';
 
-  // 关节链：起点 + [角度,长度] 序列
-  function chain(x, y, segs) {
-    const js = [{ x, y }]; let cx = x, cy = y;
-    for (const [a, l] of segs) { cx += Math.cos(rad(a)) * l; cy += Math.sin(rad(a)) * l; js.push({ x: cx, y: cy }); }
-    return js;
+  // 手指/拇指胶囊：基点(x,y)，角度 ang（0=竖直向上，正=顺时针向右偏），长 len，宽 w
+  function cap(x, y, len, w, ang) {
+    return '<rect x="' + f(-w / 2) + '" y="' + f(-len) + '" width="' + f(w) + '" height="' + f(len) + '" rx="' + f(w / 2) + '" fill="' + SK + '" stroke="' + LINE + '" stroke-width="2" transform="translate(' + f(x) + ' ' + f(y) + ') rotate(' + f(ang) + ')"/>';
   }
-  function dirAt(joints, i) {
-    const n = joints.length;
-    if (i === 0) return unit(sub(joints[1], joints[0]));
-    if (i === n - 1) return unit(sub(joints[n - 1], joints[n - 2]));
-    return unit(add(unit(sub(joints[i], joints[i - 1])), unit(sub(joints[i + 1], joints[i]))));
+  function bump(x, y, r) {
+    return '<circle cx="' + f(x) + '" cy="' + f(y) + '" r="' + f(r || 5.2) + '" fill="' + SK + '" stroke="' + LINE + '" stroke-width="2"/>';
   }
-  // 关节链两侧偏移点：S- = -perp 侧（轮廓行进先来的一侧），S+ = +perp 侧
-  function sides(joints, hw) {
-    const Sm = [], Sp = [];
-    for (let i = 0; i < joints.length; i++) {
-      const p = perp(dirAt(joints, i));
-      Sm.push(add(joints[i], mul(p, -hw[i])));
-      Sp.push(add(joints[i], mul(p, hw[i])));
-    }
-    return { Sm, Sp };
+  const fingerSet = (arr) => arr.map(function (a) { return cap(a[0], a[1], a[2], a[3], a[4]); }).join('');
+  const bumps = (arr) => arr.map(function (a) { return bump(a[0], a[1]); }).join('');
+
+  // 手掌 + 右侧浅阴影 + 手腕
+  function palm() {
+    return '<ellipse cx="50" cy="62" rx="21" ry="22.5" fill="' + SK + '" stroke="' + LINE + '" stroke-width="2"/>'
+      + '<ellipse cx="55.5" cy="65" rx="12.5" ry="15.5" fill="' + SHADE + '" opacity="0.26"/>'
+      + '<rect x="39.5" y="82" width="21" height="13" rx="6" fill="' + SKIN2 + '" stroke="' + LINE + '" stroke-width="2"/>';
   }
-  // 链末端半圆鼓出点（指尖/圆底）
-  function arcPoints(joints, hw) {
-    const n = joints.length, C = joints[n - 1], d = dirAt(joints, n - 1), p = perp(d), r = hw[n - 1];
-    const pts = [];
-    for (const th of [-70, -35, 0, 35, 70]) {
-      const a = rad(th);
-      pts.push({ x: C.x + d.x * r * Math.cos(a) + p.x * r * Math.sin(a), y: C.y + d.y * r * Math.cos(a) + p.y * r * Math.sin(a) });
-    }
-    return pts;
-  }
-  // 一整串点 → 平滑闭合路径（二次贝塞尔过中点）
-  function smoothClosed(pts) {
-    let d = `M ${f(pts[0].x)} ${f(pts[0].y)}`;
-    for (let i = 1; i < pts.length - 1; i++) {
-      d += ` Q ${f(pts[i].x)} ${f(pts[i].y)} ${f((pts[i].x + pts[i + 1].x) / 2)} ${f((pts[i].y + pts[i + 1].y) / 2)}`;
-    }
-    d += ` L ${f(pts[pts.length - 1].x)} ${f(pts[pts.length - 1].y)} Z`;
-    return d;
+  // 掌纹（低调）
+  function creases() {
+    return '<path d="M41 57 Q50 61 59 56.5" stroke="' + LINE + '" stroke-width="1.6" fill="none" opacity="0.32"/>'
+      + '<path d="M43 69 Q50.5 72 58 68.5" stroke="' + LINE + '" stroke-width="1.6" fill="none" opacity="0.26"/>';
   }
 
-  // 手掌轮廓参数（左缘点自下而上，右缘点自上而下）
-  function palmProf(topY, xL, xR, wristY) {
-    return {
-      topY, xL, xR, wristY,
-      wL: xL + 7, wR: xR - 9,
-      left: [{ x: xL + 1, y: topY + 64 }, { x: xL - 7, y: topY + 38 }, { x: xL - 3, y: topY + 14 }],
-      right: [{ x: xR + 3, y: topY + 14 }, { x: xR + 7, y: topY + 38 }, { x: xR + 1, y: topY + 64 }],
-    };
-  }
-  // 统一外轮廓：左腕底 → 左掌缘上行 → 各特征(S-上行·尖弧·S+下行)，特征间山谷 → 右掌缘 → 腕底
-  function unified(palm, feats, valleys) {
-    const pts = [{ x: palm.wL, y: palm.wristY }, ...palm.left];
-    const vpts = [];
-    feats.forEach((ft, k) => {
-      const { Sm, Sp } = sides(ft.joints, ft.hw);
-      if (k > 0) {
-        const prevS = sides(feats[k - 1].joints, feats[k - 1].hw);
-        const a = prevS.Sp[0], b = Sm[0];
-        const vp = { x: (a.x + b.x) / 2, y: Math.max(a.y, b.y) + valleys[k - 1] };
-        vpts.push({ p: vp, depth: valleys[k - 1] });
-        pts.push(vp);
-      }
-      pts.push(...Sm, ...arcPoints(ft.joints, ft.hw));
-      for (let i = Sp.length - 1; i >= 0; i--) pts.push(Sp[i]);
-    });
-    pts.push(...palm.right, { x: palm.wR, y: palm.wristY }, { x: (palm.wL + palm.wR) / 2, y: palm.wristY + 7 });
-    return { d: smoothClosed(pts), vpts };
-  }
-  // 单侧赛璐璐阴影条
-  function shadeStrip(joints, hw) {
-    const sj = joints.map((j, i) => add(j, mul(perp(dirAt(joints, i)), hw[i] * 0.42)));
-    const shw = hw.map((w) => w * 0.26);
-    const { Sm, Sp } = sides(sj, shw);
-    return `<path d="${smoothClosed([...Sm, ...arcPoints(sj, shw), ...Sp.slice().reverse()])}" fill="${SHADE}" opacity="0.4"/>`;
-  }
-  // 指尖指甲
-  function nailAt(joints, hw, s = 1) {
-    const n = joints.length, C = joints[n - 1], d = dirAt(joints, n - 1);
-    const cx = C.x + d.x * hw[n - 1] * 0.12, cy = C.y + d.y * hw[n - 1] * 0.12;
-    const ang = Math.atan2(d.y, d.x) * 180 / Math.PI + 90;
-    return `<ellipse cx="${f(cx)}" cy="${f(cy)}" rx="${f(hw[n - 1] * 0.44 * s)}" ry="${f(hw[n - 1] * 0.64 * s)}" fill="${NAIL}" stroke="${LINE}" stroke-width="1.2" opacity="0.95" transform="rotate(${f(ang)} ${f(cx)} ${f(cy)})"/>`;
-  }
-  // 指节横纹
-  function creaseAt(joints, hw, i, span = 0.5) {
-    const j = joints[i], p = perp(dirAt(joints, i)), d = dirAt(joints, i);
-    const a = add(j, mul(p, -hw[i] * span)), b = add(j, mul(p, hw[i] * span)), c = add(j, mul(d, -2.5));
-    return `<path d="M ${f(a.x)} ${f(a.y)} Q ${f(c.x)} ${f(c.y)} ${f(b.x)} ${f(b.y)}" stroke="${CREASE}" stroke-width="1.7" fill="none" stroke-linecap="round" opacity="0.85"/>`;
-  }
-  // 蜷指节包上的横纹
-  function humpCrease(joints, hw) {
-    const t = 0.45;
-    const mx = joints[0].x + (joints[1].x - joints[0].x) * t, my = joints[0].y + (joints[1].y - joints[0].y) * t;
-    const w = hw[0] * 0.52;
-    return `<path d="M ${f(mx - w)} ${f(my)} Q ${f(mx)} ${f(my + 2.6)} ${f(mx + w)} ${f(my)}" stroke="${CREASE}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.8"/>`;
-  }
-  // 掌侧阴影
-  function palmShade(palm) {
-    const t = palm.topY;
-    return `<path d="M ${f(palm.xR - 18)} ${f(t + 10)} Q ${f(palm.xR - 2)} ${f(t + 34)} ${f(palm.xR - 5)} ${f(t + 58)} Q ${f(palm.xR - 8)} ${f(palm.wristY - 16)} ${f(palm.wR - 6)} ${f(palm.wristY - 10)} L ${f(palm.wR - 18)} ${f(palm.wristY - 8)} Q ${f(palm.xR - 22)} ${f(t + 54)} ${f(palm.xR - 32)} ${f(t + 12)} Z" fill="${SHADE}" opacity="0.38"/>`;
-  }
-  // 掌纹（生命线+智慧线）
-  function palmLines(palm) {
-    const t = palm.topY, xL = palm.xL, xR = palm.xR;
-    return `<path d="M ${f(xL + 16)} ${f(t + 16)} Q ${f(xL + 34)} ${f(t + 32)} ${f(xL + 28)} ${f(t + 60)}" stroke="${CREASE}" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.75"/>`
-      + `<path d="M ${f(xL + 14)} ${f(t + 42)} Q ${f(xL + 44)} ${f(t + 50)} ${f(xR - 18)} ${f(t + 40)}" stroke="${CREASE}" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.75"/>`;
-  }
-  // 深谷指缝线
-  function sepLine(vp) {
-    return `<path d="M ${f(vp.x)} ${f(vp.y - 1)} L ${f(vp.x)} ${f(vp.y + 8)}" stroke="${CREASE}" stroke-width="1.7" stroke-linecap="round" opacity="0.8"/>`;
-  }
-  // 拇指丘折痕
-  function thenarCrease(palm) {
-    return `<path d="M ${f(palm.xL + 8)} ${f(palm.topY + 34)} Q ${f(palm.xL + 18)} ${f(palm.topY + 44)} ${f(palm.xL + 20)} ${f(palm.topY + 58)}" stroke="${CREASE}" stroke-width="1.7" fill="none" stroke-linecap="round" opacity="0.7"/>`;
-  }
-  // 横搭拇指（覆盖层：圆底+指甲+阴影）
-  function overlayThumb(joints, hw) {
-    const { Sm, Sp } = sides(joints, hw);
-    const rev = joints.slice().reverse(), revHw = hw.slice().reverse();
-    const pts = [...Sm, ...arcPoints(joints, hw), ...Sp.slice().reverse(), ...arcPoints(rev, revHw)];
-    let s = `<path d="${smoothClosed(pts)}" fill="url(#hskin)" stroke="${LINE}" stroke-width="3.5" stroke-linejoin="round"/>`;
-    s += shadeStrip(joints, hw);
-    s += nailAt(joints, hw, 1.05);
-    return s;
-  }
-  // 手势 7：五指捏合（侧视，指尖收拢朝左，整手一条轮廓）
-  function pinch() {
-    const pts = [
-      { x: 152, y: 164 }, { x: 172, y: 152 }, { x: 179, y: 128 }, { x: 170, y: 106 },
-      { x: 148, y: 91 }, { x: 120, y: 85 }, { x: 94, y: 89 }, { x: 72, y: 99 }, { x: 59, y: 108 },
-      { x: 67, y: 119 }, { x: 82, y: 133 }, { x: 104, y: 146 }, { x: 128, y: 154 },
-    ];
-    let s = `<path d="${smoothClosed(pts)}" fill="url(#hskin)" stroke="${LINE}" stroke-width="3.5" stroke-linejoin="round"/>`;
-    s += `<path d="M 88 138 Q 116 152 148 148 Q 120 160 92 146 Z" fill="${SHADE}" opacity="0.4"/>`;
-    s += `<path d="M 74 103 Q 94 96 112 92" stroke="${CREASE}" stroke-width="1.7" fill="none" stroke-linecap="round" opacity="0.8"/>`;
-    s += `<path d="M 71 111 Q 94 111 112 107" stroke="${CREASE}" stroke-width="1.7" fill="none" stroke-linecap="round" opacity="0.8"/>`;
-    s += `<path d="M 73 118 Q 92 122 108 121" stroke="${CREASE}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.7"/>`;
-    s += `<path d="M 80 126 Q 100 138 122 142" stroke="${CREASE}" stroke-width="1.8" fill="none" stroke-linecap="round" opacity="0.8"/>`;
-    s += `<path d="M 64 100 Q 60 106 62 112" stroke="${CREASE}" stroke-width="1.6" fill="none" stroke-linecap="round" opacity="0.75"/>`;
-    s += `<ellipse cx="67" cy="102" rx="3.6" ry="5.4" fill="${NAIL}" stroke="${LINE}" stroke-width="1.2" transform="rotate(-50 67 102)"/>`;
-    return s;
-  }
+  const KNUCK = [[36, 41.5], [45.5, 40], [55, 39.8], [64, 41]];   // 拳面四指节
+  const F4 = [                                                     // 伸出四指（左→右：小→食）
+    [35, 45, 26, 10, -9],
+    [44.5, 43, 33, 10.5, -2.5],
+    [54, 42.5, 36, 11, 2.5],
+    [63.5, 45, 31, 11, 9],
+  ];
+  const THUMB_TUCK = bump(29.5, 67, 6.2);                          // 拇指收在掌侧
+  const THUMB_OUT = (a) => cap(30.5, 69, 23, 12, a);               // 拇指伸出
 
-  // 几何常量
-  const FX = { i: 90, m: 110, r: 130, p: 148 };
-  const FLEN = { i: [34, 28], m: [36, 32], r: [32, 28], p: [26, 20] };
-  const FHW = { i: [9.5, 8, 6.5], m: [9.8, 8.2, 6.6], r: [9.3, 7.8, 6.3], p: [8.3, 7, 5.6] };
-  const HUMP = { i: [24, -6], m: [25, -2], r: [24, 3], p: [20, 8] };
-
-  // 特征描述 → 关节链特征
-  function resolveFeat(spec, topY) {
-    const parts = spec.split(':');
-    const type = parts[0];
-    if (type === 'up') {
-      const id = parts[1], tilt = Number(parts[2]);
-      const bend = (id === 'i' || id === 'm') ? 4 : -4;
-      return { joints: chain(FX[id], topY + 8, [[tilt, FLEN[id][0]], [tilt + bend, FLEN[id][1]]]), hw: FHW[id], nail: true, creases: [1], shade: true };
-    }
-    if (type === 'hump') {
-      const [h, tilt] = HUMP[parts[1]];
-      const x = FX[parts[1]];
-      return { joints: [{ x, y: topY + 12 }, { x: x + Math.sin(rad(tilt)) * h, y: topY + 12 - h * Math.cos(rad(tilt)) }], hw: [10.3, 8.4], hump: true };
-    }
-    if (type === 'thumb') {
-      const [x, y, aA, lA, aB, lB] = parts[1].split(',').map(Number);
-      return { joints: chain(x, y, [[aA, lA], [aB, lB]]), hw: [11, 9.5, 7.8], nail: true, creases: [1], shade: true };
-    }
-    if (type === 'gunIndex') return { joints: chain(80, topY + 8, [[184, 34], [176, 28]]), hw: FHW.i, nail: true, creases: [1], shade: true };
-    if (type === 'gunThumb') return { joints: chain(82, topY + 6, [[-96, 26], [-84, 20]]), hw: [10.5, 9, 7.2], nail: true, creases: [1], shade: true };
-    if (type === 'hook') return { joints: [{ x: 88, y: topY + 10 }, { x: 88, y: topY - 8 }, { x: 96, y: topY - 20 }, { x: 106, y: topY - 13 }], hw: [9.5, 8.3, 7, 5.4], shade: true };
-    return null;
-  }
-
-  // 横搭拇指姿态表
-  const THUMBS = {
-    across: (t) => ({ joints: [{ x: 65, y: t + 46 }, { x: 94, y: t + 30 }, { x: 124, y: t + 24 }], hw: [11.5, 9.8, 7.8] }),
-    far: (t) => ({ joints: [{ x: 65, y: t + 46 }, { x: 98, y: t + 28 }, { x: 132, y: t + 20 }], hw: [11.5, 9.8, 7.8] }),
-    tuck: (t) => ({ joints: [{ x: 66, y: t + 50 }, { x: 96, y: t + 38 }, { x: 120, y: t + 32 }], hw: [10.5, 9, 7.2] }),
-    mid: (t) => ({ joints: [{ x: 64, y: t + 38 }, { x: 94, y: t + 22 }, { x: 124, y: t + 18 }, { x: 144, y: t + 22 }], hw: [11.5, 10.3, 8.5, 7] }),
-    tight: (t) => ({ joints: [{ x: 64, y: t + 42 }, { x: 92, y: t + 26 }, { x: 118, y: t + 22 }], hw: [11.5, 10, 8] }),
-  };
-
-  // 姿势表
   const POSES = {
-    0: { palm: [110, 80, 152, 178], feats: ['hump:i', 'hump:m', 'hump:r', 'hump:p'], valleys: [5, 5, 5], thumb: 'tight', hole: true },
-    1: { feats: ['up:i:-92', 'hump:m', 'hump:r', 'hump:p'], valleys: [10, 5, 5], thumb: 'across' },
-    2: { feats: ['up:i:-103', 'up:m:-77', 'hump:r', 'hump:p'], valleys: [17, 11, 5], thumb: 'far' },
-    3: { feats: ['up:i:-95', 'up:m:-90', 'up:r:-84', 'hump:p'], valleys: [9, 9, 10], thumb: 'far' },
-    4: { feats: ['up:i:-95', 'up:m:-90', 'up:r:-85', 'up:p:-79'], valleys: [9, 9, 9], thumb: 'tuck', lines: true },
-    5: { feats: ['thumb:72,130,-128,30,-102,24', 'up:i:-99', 'up:m:-91', 'up:r:-83', 'up:p:-73'], valleys: [13, 13, 13, 12], lines: true },
-    6: { feats: ['thumb:74,132,-148,26,-112,22', 'hump:i', 'hump:m', 'hump:r', 'up:p:-66'], valleys: [13, 6, 6, 10], lines: true },
-    7: { custom: 'pinch' },
-    8: { feats: ['gunIndex', 'gunThumb', 'hump:m', 'hump:r', 'hump:p'], valleys: [12, 4, 5, 5] },
-    9: { feats: ['hook', 'hump:m', 'hump:r', 'hump:p'], valleys: [9, 5, 5], thumb: 'across' },
-    10: { palm: [110, 80, 152, 178], feats: ['hump:i', 'hump:m', 'hump:r', 'hump:p'], valleys: [5, 5, 5], thumb: 'mid' },
-    11: { feats: ['up:i:-96', 'hump:m', 'hump:r', 'up:p:-69'], valleys: [10, 5, 10], thumb: 'far' },
+    // 0 空拳：四指节 + 拇指横抱拳底
+    0: () => palm() + bumps(KNUCK) + cap(37, 71.5, 25, 11.5, 96) + creases(),
+    // 1 食指
+    1: () => fingerSet([[63.5, 45, 33, 11, 3]]) + palm() + bumps([[54, 40.5], [45, 41.8], [36, 43.5]]) + THUMB_TUCK + creases(),
+    // 2 V（食指+中指）
+    2: () => fingerSet([[64, 45, 30, 11, 14], [54.5, 44, 35, 11, -9]]) + palm() + bumps([[45, 42.5], [36, 44.5]]) + THUMB_TUCK + creases(),
+    // 3 中三指（食/中/环），拇指小指收
+    3: () => fingerSet([[65, 45.5, 30, 11, 12], [55, 43.5, 36, 11, 2], [45, 43.5, 32, 10.5, -8]]) + palm() + bumps([[36, 45], [29.5, 66.5]]) + creases(),
+    // 4 四指
+    4: () => fingerSet(F4) + palm() + THUMB_TUCK + creases(),
+    // 5 张开（+拇指）
+    5: () => fingerSet(F4) + palm() + THUMB_OUT(-44) + creases(),
+    // 6 拇指+小指
+    6: () => fingerSet([[35, 45, 27, 10, -4]]) + palm() + bumps([[44.5, 42.5], [54, 41.5], [63.5, 42.5]]) + THUMB_OUT(-48) + creases(),
+    // 7 捏合（拇指+食指对捏，余指收）
+    7: () => palm() + bumps([[42.5, 54], [51, 53], [59, 52.5]]) + cap(33.5, 66, 27, 11, 24) + cap(62.5, 64.5, 27, 11, -22) + creases(),
+    // 8 枪L（拇指向上 + 食指指向右）
+    8: () => palm() + bumps([[36.5, 46], [42.5, 42.5]]) + cap(50, 52, 25, 11, -3) + cap(55, 57.5, 28, 10.5, 90) + creases(),
+    // 9 食指弯钩（上段伸出、下段下勾）
+    9: () => palm() + bumps([[36, 41.5], [45.5, 40], [55, 39.8]]) + cap(59, 46, 18, 11, -10) + cap(55.9, 28.3, 15, 11, 122) + bump(30, 66, 6) + creases(),
+    // 10 空心零（拇指+食指指尖成环，中三指伸出）
+    10: () => fingerSet([[50.5, 42.5, 34, 11, 2], [42, 43, 31, 10.5, -4.5], [34, 45, 25, 10, -11]])
+      + palm() + cap(46, 65, 25, 11, 44)
+      + '<circle cx="66" cy="40" r="8.5" fill="none" stroke="' + LINE + '" stroke-width="12"/>'
+      + '<circle cx="66" cy="40" r="8.5" fill="none" stroke="' + SKIN + '" stroke-width="8"/>'
+      + creases(),
+    // 11 食指+小指
+    11: () => fingerSet([[64, 45, 31, 11, 8], [35, 45, 26, 10, -10]]) + palm() + bumps([[54, 41], [44.5, 42.5]]) + THUMB_TUCK + creases(),
   };
 
-  function build(d) {
-    const g = POSES[d] || POSES[0];
-    let inner = '';
-    if (g.custom === 'pinch') inner = pinch();
-    else {
-      const [t, xL, xR, wY] = g.palm || [104, 76, 156, 182];
-      const palm = palmProf(t, xL, xR, wY);
-      const feats = g.feats.map((s) => resolveFeat(s, t));
-      const out = unified(palm, feats, g.valleys);
-      inner += `<path d="${out.d}" fill="url(#hskin)" stroke="${LINE}" stroke-width="3.5" stroke-linejoin="round"/>`;
-      inner += palmShade(palm);
-      for (const ft of feats) if (ft && ft.shade) inner += shadeStrip(ft.joints, ft.hw);
-      for (const ft of feats) {
-        if (!ft) continue;
-        if (ft.creases) for (const i of ft.creases) inner += creaseAt(ft.joints, ft.hw, i);
-        if (ft.hump) inner += humpCrease(ft.joints, ft.hw);
-        if (ft.nail) inner += nailAt(ft.joints, ft.hw);
-      }
-      for (const v of out.vpts) if (v.depth >= 12) inner += sepLine(v.p);
-      if (g.lines) inner += palmLines(palm);
-      if (g.thumb) {
-        const tb = THUMBS[g.thumb](t);
-        inner += overlayThumb(tb.joints, tb.hw);
-        inner += thenarCrease(palm);
-      }
-      if (g.hole) inner += `<ellipse cx="88" cy="${t + 8}" rx="7" ry="4.4" fill="#38220f" stroke="${LINE}" stroke-width="2.4" transform="rotate(-18 88 ${t + 8})"/>`;
-    }
-    return `<svg class="hand" viewBox="0 0 220 210" role="img" aria-label="手势 ${d}">
-  <defs><linearGradient id="hskin" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${SKIN}"/><stop offset="1" stop-color="${SKIN2}"/></linearGradient></defs>
-  <ellipse cx="110" cy="202" rx="48" ry="6" fill="#000000" opacity="0.15"/>
-  ${inner}
-</svg>`;
-  }
-  return build;
+  return function handSVG(n) {
+    const pose = POSES[n] || POSES[0];
+    return '<svg class="hand" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">'
+      + '<defs><linearGradient id="twSkin" x1="0" y1="0" x2="0.9" y2="1">'
+      + '<stop offset="0" stop-color="' + SKIN + '"/><stop offset="1" stop-color="' + SKIN2 + '"/>'
+      + '</linearGradient></defs>' + pose() + '</svg>';
+  };
 })();
 
 // ==================== 技能卡牌插画 ====================

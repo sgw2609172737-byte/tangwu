@@ -71,7 +71,7 @@ button.ghost { background: transparent; }
 /* ---------- 对局 ---------- */
 #game { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 10px; flex: 1; min-height: 0; }
 .game-left { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-.game-right { display: flex; min-height: 0; }
+.game-right { display: flex; min-height: 0; position: relative; }
 .player-card {
   position: relative;
   background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 12px 18px;
@@ -145,6 +145,28 @@ svg.hand { width: 102px; height: 98px; position: relative; z-index: 1; filter: d
   font-size: 13px; line-height: 1.8; color: var(--dim);
 }
 .log-line { border-left: 3px solid rgba(122, 162, 255, 0.25); padding-left: 8px; margin: 3px 0; }
+
+/* 可拖动的滚动条（日志 / 盲ban列表） */
+.log, .ban-grid { scrollbar-width: thin; scrollbar-color: rgba(122, 162, 255, 0.55) rgba(10, 12, 30, 0.35); }
+.log::-webkit-scrollbar, .ban-grid::-webkit-scrollbar { width: 10px; }
+.log::-webkit-scrollbar-track, .ban-grid::-webkit-scrollbar-track {
+  background: rgba(10, 12, 30, 0.35); border-radius: 8px; margin: 4px 0;
+}
+.log::-webkit-scrollbar-thumb, .ban-grid::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(122, 162, 255, 0.55), rgba(183, 155, 255, 0.55));
+  border-radius: 8px; border: 2px solid rgba(0, 0, 0, 0); background-clip: padding-box;
+}
+.log::-webkit-scrollbar-thumb:hover, .ban-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(122, 162, 255, 0.8); background-clip: padding-box;
+}
+
+/* 「回到最新」悬浮按钮 */
+.log-jump {
+  position: absolute; bottom: 14px; right: 14px; z-index: 5;
+  padding: 6px 14px; border-radius: 999px; font-size: 12px; font-weight: 700;
+  background: linear-gradient(135deg, #4c5fd5, #7a5fd0); border-color: #8b7ae0; color: #fff;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+}
 
 .controls { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px 18px; backdrop-filter: blur(8px); }
 .prompt { margin-bottom: 12px; font-size: 14px; color: var(--dim); }

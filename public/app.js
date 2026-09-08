@@ -390,6 +390,7 @@ function renderLog() {
   const items = state.log.slice(-150);
   const key = items.length + '|' + (items[items.length - 1] || '');
   if (key === _lastLogKey) return; // 日志无变化，跳过重建
+  const stick = el.scrollHeight - el.scrollTop - el.clientHeight < 60; // 本在底部→跟随最新
   _lastLogKey = key;
   el.innerHTML = items.map((t) => {
     let cls = '';
@@ -399,7 +400,8 @@ function renderLog() {
     else if (/生效|就绪|召唤|控制|冰封|剧毒|中毒|强化|互换/.test(t)) cls = 'sys';
     return `<div class="log-line ${cls}">${esc(t)}</div>`;
   }).join('');
-  el.scrollTop = el.scrollHeight;
+  if (stick) el.scrollTop = el.scrollHeight;
+  else { const j = $('#log-jump'); if (j) j.classList.remove('hidden'); }
 }
 
 function renderResult() {
@@ -430,6 +432,18 @@ $('#btn-copy').onclick = () => {
 $('#btn-rematch').onclick = () => send({ type: 'rematch' });
 $('#name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doCreate(); });
 $('#code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
+
+// ---------- 日志滚动：上翻阅读不被拉回，点「最新」回底部 ----------
+{
+  const log = document.querySelector('#log');
+  const jump = document.querySelector('#log-jump');
+  if (log && jump) {
+    log.addEventListener('scroll', () => {
+      if (log.scrollHeight - log.scrollTop - log.clientHeight < 60) jump.classList.add('hidden');
+    }, { passive: true });
+    jump.onclick = () => { log.scrollTop = log.scrollHeight; jump.classList.add('hidden'); };
+  }
+}
 
 // ---------- 键盘操作：数字键选相加/技能，P 空过，Esc 关弹窗 ----------
 document.addEventListener('keydown', (e) => {
