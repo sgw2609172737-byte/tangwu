@@ -52,7 +52,7 @@ function mockPlayer(p, label, ctrl) {
     + '<div class="hand-box skill" title="技能手">' + handSVG(p.s) + '<div class="hand-digit skill">' + p.s + '</div></div>'
     + '</div><div class="buffs">' + buffs + '</div>';
 }
-document.getElementById('mock-opp').innerHTML = mockPlayer({ name: '小明', e: 8, s: 6, hp: 14, energy: 9, buffs: [['qibu', '七步', '每回合-4血'], ['freeze', '冰封', '剩1回合']] }, '对手', false);
+document.getElementById('mock-opp').innerHTML = mockPlayer({ name: '小明', e: 8, s: 6, hp: 14, energy: 9, buffs: [['qibu', '七步', '每回合-3血'], ['freeze', '冰封', '剩1回合']] }, '对手', false);
 document.getElementById('mock-me').innerHTML = mockPlayer({ name: '我', e: 3, s: 6, hp: 19, energy: 11, buffs: [['qianghua', '强化', '永久'], ['wudi', '无敌', '已就绪']] }, '我', false);
 document.getElementById('mock-log').innerHTML = [
   ['nrg', '小明 回合开始：费用 +1$（当前 9$）'],

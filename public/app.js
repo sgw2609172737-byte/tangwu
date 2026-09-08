@@ -26,7 +26,12 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.add('hidden'), 3000);
 }
 
+let sending = false; // 防抖：上一次请求未返回前忽略重复点击
 async function send(body) {
+  if (sending) return;
+  sending = true;
+  const ctl = $('#controls');
+  ctl.classList.add('sending');
   if (window.TW_SFX) TW_SFX.click();
   try {
     await api('/api/action', { ...body, room: me.roomCode, token: me.token });
@@ -39,6 +44,7 @@ async function send(body) {
     }
     poll();
   } catch (e) { toast(e.message); }
+  finally { sending = false; ctl.classList.remove('sending'); }
 }
 
 function setMe(d) {
@@ -47,16 +53,31 @@ function setMe(d) {
   connectStream();
 }
 
-// 短轮询同步（兼容自建服务器与 Vercel：统一走 GET /api/state）
-// 自适应节奏：轮到自己决策时慢速轮询（省 Redis 额度），等待对方时快速轮询（响应快）
+// 状态同步：优先 SSE 实时推送（自建服务器），断开自动回退轮询（兼容 Vercel）
+// 轮询自适应节奏：轮到自己决策时慢速轮询（省流量/Redis 额度），等待对方时快速轮询（响应快）
+let sse = null, sseBroken = false;
 function connectStream() {
   stopPoll();
+  sseBroken = false;
+  openSSE();
   poll();
   schedulePoll();
 }
-function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } }
+function openSSE() {
+  if (sseBroken || sse || typeof EventSource === 'undefined' || !me.token) return;
+  try {
+    sse = new EventSource(`/api/stream?room=${encodeURIComponent(me.roomCode)}&token=${encodeURIComponent(me.token)}`);
+  } catch (e) { sseBroken = true; return; }
+  sse.onmessage = (ev) => {
+    try { state = JSON.parse(ev.data); render(); } catch (e) { /* 忽略坏帧 */ }
+  };
+  sse.onerror = () => { closeSSE(); sseBroken = true; schedulePoll(); }; // 推流断开 → 回退轮询
+}
+function closeSSE() { if (sse) { try { sse.close(); } catch (e) {} sse = null; } }
+function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null; } closeSSE(); }
 function schedulePoll() {
-  stopPoll();
+  if (pollTimer) clearInterval(pollTimer);
+  if (sse) { pollTimer = setInterval(poll, 8000); return; } // SSE 在线：慢速兜底轮询
   const myTurn = state && (state.controller >= 0 ? state.controller : state.turn) === me.idx;
   const isDeciding = myTurn && state.step === 'awaitAction';
   pollTimer = setInterval(poll, isDeciding ? 2500 : 1100);
@@ -131,28 +152,60 @@ function render() {
   renderGame();
 }
 
-// 盲ban 界面：从全部技能里挑一个禁用
+// 盲ban 界面：从全部技能里挑一个禁用（支持费用筛选 + 名称搜索）
+let banCost = -1, banQuery = '', banToolsBuilt = false;
 function renderBan() {
   const myIdx = me.idx;
   const picked = state.banPicks && state.banPicks[myIdx];
   const sub = $('#ban-sub');
   const grid = $('#ban-grid');
+  const tools = $('#ban-tools');
   if (picked) {
     sub.textContent = '✅ 你已选择禁用，等待对方…（都选完后公示）';
+    tools.innerHTML = '';
+    banToolsBuilt = false;
     grid.innerHTML = '<div class="wait-msg">⏳ 等待对方禁用…</div>';
     return;
   }
   sub.textContent = '🔒 盲ban：从全部技能里选 1 个禁用（双方同时选、可重复，都选完公示）。';
+  // 工具栏只建一次，避免输入时焦点被打断
+  if (!banToolsBuilt) {
+    banCost = -1; banQuery = '';
+    const costs = Object.keys(state.catalog).map(Number).sort((a, b) => a - b);
+    tools.innerHTML = `
+      <div class="ban-tools">
+        <input id="ban-search" placeholder="搜索技能名…" maxlength="12">
+        <div class="ban-chips">
+          <button class="chip on" data-cost="-1">全部</button>
+          ${costs.map((c) => `<button class="chip" data-cost="${c}">${c}$</button>`).join('')}
+        </div>
+      </div>`;
+    $('#ban-search').addEventListener('input', (e) => { banQuery = e.target.value.trim(); renderBanGrid(); });
+    tools.querySelectorAll('[data-cost]').forEach((c) => {
+      c.onclick = () => {
+        banCost = Number(c.dataset.cost);
+        tools.querySelectorAll('[data-cost]').forEach((x) => x.classList.toggle('on', x === c));
+        renderBanGrid();
+      };
+    });
+    banToolsBuilt = true;
+  }
+  renderBanGrid();
+}
+function renderBanGrid() {
+  const grid = $('#ban-grid');
   const skills = [];
   for (const d of Object.keys(state.catalog)) {
     for (const s of state.catalog[d]) skills.push({ ...s, digit: d });
   }
-  grid.innerHTML = skills.map((s) => `
+  const shown = skills.filter((s) =>
+    (banCost < 0 || Number(s.digit) === banCost) && (!banQuery || s.name.includes(banQuery)));
+  grid.innerHTML = shown.map((s) => `
     <button class="ban-skill theme-${(SKILL_ART[s.id] || SKILL_ART._def).theme}" data-ban="${s.id}" title="${esc(s.desc)}">
       <span class="ban-cost">${s.digit}$</span>
       <span class="ban-name">${esc(s.name)}</span>
       <span class="ban-desc">${esc(s.desc)}</span>
-    </button>`).join('');
+    </button>`).join('') || '<div class="wait-msg">没有匹配的技能</div>';
   grid.querySelectorAll('[data-ban]').forEach((b) => {
     b.onclick = () => send({ type: 'ban', skillId: b.dataset.ban });
   });
@@ -189,8 +242,8 @@ function renderPlayerCard(el, p, label, active) {
     </div>
     <div class="hands">
       <div class="hand-box energy" title="费用手">
-        ${handSVG(p.shownE)}
-        <div class="hand-digit energy">${p.shownE}</div>
+        ${handSVG(p.energy)}
+        <div class="hand-digit energy">${p.energy}</div>
       </div>
       <div class="hand-box skill" title="技能手">
         ${handSVG(p.skill)}
@@ -262,12 +315,21 @@ function renderControls(actor) {
   }
   const ctrlNote = state.controller === myIdx ? `🧠 正在控制 ${turnP.name} 的回合：` : '';
   if (canAdd) {
+    const mySkill = turnP.skill;
+    const opts = [
+      { label: '费用手', val: oppP.shownE },
+      { label: '技能手', val: oppP.skill },
+    ];
     el.innerHTML = `
       <div class="prompt">${ctrlNote}👉 技能手与对方一只手相加（取个位），选一个数字：</div>
       <div class="add-btns">
-        <button class="add-num" data-add="0">${oppP.shownE}</button>
-        <button class="add-num" data-add="1">${oppP.skill}</button>
-      </div>`;
+        ${opts.map((o, i) => `
+          <div class="add-opt">
+            <button class="add-num" data-add="${i}" title="与对方${o.label}相加">${o.val}</button>
+            <span class="add-eq">${mySkill}+${o.val}→<b>${(mySkill + o.val) % 10}</b></span>
+          </div>`).join('')}
+      </div>
+      <div class="kbd-hint">提示：按 1 / 2 键快速选择</div>`;
     el.querySelectorAll('[data-add]').forEach((btn) => { btn.onclick = () => send({ type: 'add', choice: Number(btn.dataset.add) }); });
     return;
   }
@@ -278,11 +340,13 @@ function renderControls(actor) {
   const skills = state.catalog[digit] || [];
   let html = `<div class="prompt">${ctrlNote}技能手 = <b>${digit}</b>，费用 <b>${digit}$</b>（当前 ${turnP.energy}$）${locked ? ' <b style="color:#ff5d73">⚠ 连续出技能已达24次，只能空过</b>' : ''}${state.chainCount >= 3 ? `，数字连携 <b>${state.chainCount}</b> 次！` : ''}</div>`;
   html += '<div class="skill-grid">';
+  let vis = 0;
   skills.forEach((sk, i) => {
     if (state.banned && state.banned.indexOf(sk.id) >= 0) return; // 被禁技能不显示
-    html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`);
+    vis++;
+    html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`, vis);
   });
-  html += `</div><button id="btn-pass" class="pass-btn">空过（结束回合）</button>`;
+  html += `</div><button id="btn-pass" class="pass-btn">空过（结束回合）</button><div class="kbd-hint">提示：数字键选技能 · P 键空过</div>`;
   el.innerHTML = html;
   el.querySelectorAll('[data-skill]').forEach((btn) => { btn.onclick = () => chooseSkill(Number(btn.dataset.skill), actor); });
   $('#btn-pass').onclick = () => send({ type: 'pass' });
@@ -320,9 +384,13 @@ function chooseSkill(skillIdx, actor) {
   send({ type: 'act', skillIdx });
 }
 
+let _lastLogKey = '';
 function renderLog() {
   const el = $('#log');
   const items = state.log.slice(-150);
+  const key = items.length + '|' + (items[items.length - 1] || '');
+  if (key === _lastLogKey) return; // 日志无变化，跳过重建
+  _lastLogKey = key;
   el.innerHTML = items.map((t) => {
     let cls = '';
     if (/伤害|秒杀|击败|败北|清零|倒下/.test(t)) cls = 'dmg';
@@ -362,6 +430,31 @@ $('#btn-copy').onclick = () => {
 $('#btn-rematch').onclick = () => send({ type: 'rematch' });
 $('#name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doCreate(); });
 $('#code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
+
+// ---------- 键盘操作：数字键选相加/技能，P 空过，Esc 关弹窗 ----------
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { $('#rules-modal').classList.add('hidden'); return; }
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
+  const ael = document.activeElement;
+  if (ael && (ael.tagName === 'INPUT' || ael.tagName === 'TEXTAREA' || ael.tagName === 'SELECT')) return;
+  if (document.querySelector('.modal:not(.hidden)')) return;
+  if (!me.token || !state || state.over) return;
+  const actor = state.controller >= 0 ? state.controller : state.turn;
+  if (actor !== me.idx) return;
+  if (state.step === 'awaitAdd') {
+    if (e.key === '1') { const b = document.querySelector('#controls [data-add="0"]'); if (b) b.click(); }
+    else if (e.key === '2') { const b = document.querySelector('#controls [data-add="1"]'); if (b) b.click(); }
+  } else if (state.step === 'awaitAction') {
+    if (/^[1-9]$/.test(e.key)) {
+      const btns = document.querySelectorAll('#controls [data-skill]');
+      const b = btns[Number(e.key) - 1];
+      if (b && !b.disabled) b.click();
+    } else if (e.key === 'p' || e.key === 'P') {
+      const b = document.querySelector('#btn-pass');
+      if (b) b.click();
+    }
+  }
+});
 
 // 自动重连 / 一键加入 / 从邀请链接进入
 (async () => {

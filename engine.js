@@ -8,6 +8,7 @@ for (const d of Object.keys(__SKILLS)) for (const s of __SKILLS[d]) __ALL_SKILLS
 
 const CAP_E = 11;          // 费用上限
 const MAX_ACTIONS = 50;    // 每回合行动次数上限（含再次行动）
+const STALEMATE_TURNS = 24; // 连续这么多回合双方都未受伤 → 按血量判定胜负（防止无限拖延/死循环）
 
 // ---------- 基础工具 ----------
 function log(g, msg) {
@@ -37,8 +38,9 @@ function mkPlayer(name, hp) {
     cuidu: false,                                    // 淬毒（永久）
     dummy: { alive: false, hp: 0, castBefore: false }, // 假人
     inDummyCombat: false,                            // 假人作战状态（灵魂已转移到假人）
-    qibu: { stage: 0, owner: -1 },                   // 七步：0无 1每回合-4 2每回合-3
-    duming: { active: false, turnsLeft: 0, extraUsed: false }, // 赌命
+    qibu: { stage: 0, owner: -1 },                   // 七步：0无 1每回合-3 2每回合-2
+    duming: { active: false, turnsLeft: 0 },         // 赌命
+    dumingExtraUsed: false,                          // 赌命"瞬时伤害≥9"额外行动（整局限一次，不随再次赌命重置）
     freeze: 0,                                       // 冰封剩余回合
     huanwuSkip: false,                               // 幻雾：下回合跳过相加
     chaofeng: { pending: false, dmg: 0 },            // 嘲讽
@@ -71,6 +73,8 @@ function createGame(names) {
     banPicks: [null, null],                          // 双方各自选的禁用技能（公示前不公开）
     log: [],
     over: false, result: null, winner: -1,
+    noDamageTurns: 0,                                // 连续无人受伤的回合数（僵局裁定）
+    damagedThisTurn: false,                          // 本回合是否有人受伤
   };
 }
 
@@ -117,13 +121,14 @@ function dealDamage(g, source, target, amount, opts = {}) {
     return false;
   }
   target.hp -= amount;
+  g.damagedThisTurn = true;
   log(g, `${note ? '[' + note + '] ' : ''}${target.name} 受到 ${amount} 点伤害（HP ${target.hp}）`);
   if (source) {
     source.cumulativeDmg += amount;
     if (source === cur(g)) { source.turnDmg += amount; source.dealtThisTurn = true; }
     // 赌命：瞬时伤害≥9 → 额外行动（整局限一次，且仅当前行动者触发）
-    if (!isDot && source.duming.active && !source.duming.extraUsed && amount >= 9 && source === cur(g)) {
-      source.duming.extraUsed = true;
+    if (!isDot && source.duming.active && !source.dumingExtraUsed && amount >= 9 && source === cur(g)) {
+      source.dumingExtraUsed = true;
       g.pendingDumingAgain = true;
       log(g, `☠ 赌命：${source.name} 单次伤害≥9，获得额外行动！`);
     }
@@ -162,6 +167,7 @@ function startTurn(g) {
   g.chainDigits.clear();
   p.dealtThisTurn = false;
   p.turnDmg = 0;
+  g.damagedThisTurn = false;
   // 鄙视：对方回合前，若其技能手数字更大
   if (o.bishi && o.skill > p.skill) {
     gain(g, o, 1); loseE(g, p, 1);
@@ -238,6 +244,18 @@ function endTurn(g) {
     }
   }
   if (g.over) return;
+  // 僵局裁定：连续多回合双方都未受伤 → 按血量判定胜负，避免无限拖延（如反复幻雾互锁）
+  if (!g.damagedThisTurn) {
+    g.noDamageTurns = (g.noDamageTurns || 0) + 1;
+    if (g.noDamageTurns >= STALEMATE_TURNS) {
+      const d = g.players[0].hp - g.players[1].hp;
+      log(g, `⏱ 连续 ${STALEMATE_TURNS} 回合无人受伤，按血量判定胜负`);
+      endGame(g, d > 0 ? 0 : (d < 0 ? 1 : -1));
+      return;
+    }
+  } else {
+    g.noDamageTurns = 0;
+  }
   g.turn = 1 - g.turn;
   startTurn(g);
 }
@@ -367,8 +385,8 @@ function buffList(p) {
   if (p.cuidu) out.push({ key: 'cuidu', name: '淬毒', detail: '攻击附带1毒伤' });
   if (p.dummy.alive) out.push({ key: 'dummy', name: '假人', detail: `${p.dummy.hp}血` });
   if (p.inDummyCombat) out.push({ key: 'dummyC', name: '假人作战', detail: '灵魂在假人中' });
-  if (p.qibu.stage === 1) out.push({ key: 'qibu', name: '七步', detail: '每回合结束-4' });
-  if (p.qibu.stage === 2) out.push({ key: 'qibu', name: '七步', detail: '每回合结束-3' });
+  if (p.qibu.stage === 1) out.push({ key: 'qibu', name: '七步', detail: '每回合结束-3' });
+  if (p.qibu.stage === 2) out.push({ key: 'qibu', name: '七步', detail: '每回合结束-2' });
   if (p.duming.active) out.push({ key: 'duming', name: '赌命', detail: `剩${p.duming.turnsLeft}回合` });
   if (p.freeze > 0) out.push({ key: 'freeze', name: '冰封', detail: `${p.freeze}回合` });
   if (p.chaofeng.pending) out.push({ key: 'chaofeng', name: '嘲讽', detail: '待触发' });

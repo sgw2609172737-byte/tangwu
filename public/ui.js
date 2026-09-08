@@ -530,13 +530,14 @@ const SKILL_ART = (() => {
   return out;
 })();
 
-function skillCardHTML(sk, digit, afford, attrs = '') {
+function skillCardHTML(sk, digit, afford, attrs = '', keyHint = 0) {
   const art = SKILL_ART[sk.id] || SKILL_ART._def;
   return `<button class="skill-card theme-${art.theme}${afford ? '' : ' disabled'}" ${afford ? '' : 'disabled'} ${attrs} title="${esc(sk.desc)}">
     <div class="card-art">${art.svg}</div>
     <div class="card-name">${esc(sk.name)}</div>
     <div class="card-desc">${esc(sk.desc)}</div>
     <div class="card-cost">${digit}$</div>
+    ${keyHint > 0 && afford ? `<div class="card-key">${keyHint}</div>` : ''}
     ${sk.star ? '<div class="card-star">★</div>' : ''}
     ${sk.isDigit ? '<div class="card-tag">数字</div>' : ''}
   </button>`;

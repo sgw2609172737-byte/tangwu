@@ -291,13 +291,13 @@ test('淬毒：攻击技能给目标挂1层下回合毒伤，不受增伤', () =
   skipTurn(g); // o回合
   assert.strictEqual(g.turn, first);
   o.hp = 21;
-  p.duming = { active: true, turnsLeft: 99, extraUsed: true }; // 赌命+3存在，但毒伤不受增伤
+  p.duming = { active: true, turnsLeft: 99 }; // 赌命+3存在，但毒伤不受增伤
   p.energy = 11;
   force(g, 1); act(g, 'quan'); // 2+3=5伤 + 挂毒
   assert.strictEqual(o.hp, 16);
   assert.strictEqual(o.delayed.length, 1);
   assert.strictEqual(o.delayed[0].dmg, 1);
-  p.duming = { active: false, turnsLeft: 0, extraUsed: false };
+  p.duming = { active: false, turnsLeft: 0 };
   skipTurn(g); // o回合 → p回合开始，毒伤结算
   assert.strictEqual(g.turn, first);
   assert.strictEqual(o.hp, 15); // 1点毒伤（无增伤）
@@ -481,6 +481,35 @@ test('连出技能上限：24次后相加自动空过，对方出技能才解锁
   const r = actSkill(g, 0);
   assert.ok(!r || !r.err); // o 能正常出技能
   assert.strictEqual(p.streak, 0); // 对方出技能后 p 解锁
+});
+
+test('赌命：再次赌命不重置"整局限一次"的额外行动标记', () => {
+  const g = mk(); const p = cur(g), o = opp(g);
+  p.dumingExtraUsed = true; // 已使用过"瞬时伤害≥9"额外行动
+  p.energy = 11; o.hp = 30;
+  force(g, 8); act(g, 'duming'); // 再次释放赌命
+  assert.strictEqual(p.duming.active, true);
+  assert.strictEqual(p.dumingExtraUsed, true); // 标记不被重置
+});
+
+test('僵局裁定：连续24回合无人受伤 → 按血量判定胜负', () => {
+  const g = mk();
+  g.noDamageTurns = 23;
+  g.damagedThisTurn = false;
+  g.players[0].hp = 20; g.players[1].hp = 25;
+  skipTurn(g); // 结束当前回合 → 计数到24 → 判胜负
+  assert.strictEqual(g.over, true);
+  assert.strictEqual(g.winner, 1); // 血量高者胜
+  assert.ok(g.log.some((t) => /无人受伤/.test(t)));
+});
+
+test('僵局裁定：有人受伤时重置计数，不误判', () => {
+  const g = mk();
+  g.noDamageTurns = 23;
+  g.damagedThisTurn = true; // 本回合有人受伤
+  skipTurn(g);
+  assert.strictEqual(g.over, false);
+  assert.strictEqual(g.noDamageTurns, 0); // 计数归零
 });
 
 console.log(`\n通过 ${passed} 项测试${process.exitCode ? '（有失败）' : ''}`);

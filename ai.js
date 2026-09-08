@@ -47,6 +47,20 @@
     else if (a.type === 'pass') ENG.passTurn(g);
   }
 
+  // 手牌"推进能力"：攻击(8) > 七步持续伤(6) > 数字技能·再次行动(4) > 其它(0)
+  // 用于引导 AI 主动换到能推进胜利的手，避免卡在无攻击手（如反复幻雾/氮笑/净化）上死循环
+  function handPower(g, pl) {
+    const list = SK.SKILLS[pl.skill] || [];
+    let t = 0;
+    for (const s of list) {
+      if (g.banned && g.banned.indexOf(s.id) >= 0) continue;
+      if (s.isAttack) return 8;
+      if (s.id === 'qibu') t = Math.max(t, 6);
+      else if (s.grantsAgain) t = Math.max(t, 4);
+    }
+    return t;
+  }
+
   // 评估函数：从 aiIdx 视角给局面打分（越高越好）——激进型（轻量，不含战术检测，保证搜索深度）
   function evalGame(g, aiIdx) {
     if (g.over) {
@@ -59,7 +73,7 @@
     s += hpD * 9;                                   // 血量差（最重要）
     if (o.hp <= 10) s += (10 - o.hp) * 10;          // 斩杀逼近：对方进斩杀线就抢
     if (me.hp <= 10) s -= (10 - me.hp) * 10;        // 自己危险时优先保命
-    s += (me.energy - o.energy) * 1.2;              // 费用差（权重调低，避免囤积）
+    s += (me.energy - o.energy) * 1.5;              // 费用差（适度，鼓励攒费换攻击手但不过度囤积）
     s += (me.cumulativeDmg - o.cumulativeDmg) * 1.5; // 累计伤害差（鼓励持续压制）
     if (me.dummy.alive) s += 10;                    // 假人 = 第二条命
     if (o.dummy.alive) s -= 10;
@@ -74,6 +88,8 @@
     if (me.freeze > 0) s -= 10;
     if (o.freeze > 0) s += 10;
     s += o.delayed.length * 6 - me.delayed.length * 6; // 延迟伤害
+    const mePower = handPower(g, me), oPower = handPower(g, o);
+    s += mePower - oPower;                          // 手牌推进能力：偏好能攻击/能再次行动的手
     if (g.chainCount >= 2) s += 14;                 // 98K 连携威胁（鼓励攒链）
     if (g.chainCount >= 3) s += 20;
     return s;

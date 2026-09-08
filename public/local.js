@@ -158,7 +158,7 @@ function renderCard(el, p, idx) {
     <div class="p-head"><span class="p-name">${esc(p.name)}${ctrlMark}</span><span class="energy-badge" title="实际费用">费用 ${p.energy}$</span></div>
     <div class="hp-row"><div class="hp-bar"><div class="hp-fill ${hpCls}" style="width:${hpPct}%"></div></div><span class="hp-num">${p.hp}</span>${dmgNum}</div>
     <div class="hands">
-      <div class="hand-box energy" title="费用手">${handSVG(p.energy % 10)}<div class="hand-digit energy">${p.energy % 10}</div></div>
+      <div class="hand-box energy" title="费用手">${handSVG(p.energy)}<div class="hand-digit energy">${p.energy}</div></div>
       <div class="hand-box skill" title="技能手">${handSVG(p.skill)}<div class="hand-digit skill">${p.skill}</div></div>
     </div>
     <div class="buffs">${buffChips(p)}</div>`;

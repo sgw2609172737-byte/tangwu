@@ -184,7 +184,7 @@ const SKILLS = {
     { id: 'jijiu', name: '急救箱', desc: '回复10点生命（受强化影响：+12）', star: true, isAttack: false, isDigit: false,
       run(c) { c.healSelf(10 + (c.p.qianghua ? 2 : 0)); } },
     { id: 'duming', name: '赌命！', desc: '+4$、+6血并再次行动；6个你的回合（含释放回合）内未分胜负 → 血量清零直接败北（无视假人）；期间：每段伤害+3、攻击技能后+1$、瞬时伤害≥9可再次行动（整局限一次）', star: false, isAttack: false, isDigit: false, grantsAgain: true,
-      run(c) { c.gain(4); c.healSelf(6); c.p.duming = { active: true, turnsLeft: 6, extraUsed: false }; c.log(`赌命！${c.p.name} 进入赌命状态（6回合倒计时）`); } },
+      run(c) { c.gain(4); c.healSelf(6); c.p.duming = { active: true, turnsLeft: 6 }; c.log(`赌命！${c.p.name} 进入赌命状态（6回合倒计时）`); } },
   ],
   '9': [
     { id: 'youli', name: '尤里', desc: '+4$；你完全控制对方下个回合', star: false, isAttack: false, isDigit: false,

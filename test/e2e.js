@@ -67,7 +67,14 @@ function snapshot(base, roomCode, token) {
   });
 
   let sa;
-  await test('加入后自动开局，状态正确', async () => {
+  await test('加入后进入禁用阶段（盲ban）', async () => {
+    sa = await snapshot(base, roomCode, a.token);
+    assert.strictEqual(sa.phase, 'banning');
+  });
+
+  await test('双方盲ban后自动开局，状态正确', async () => {
+    await jpost(base, '/api/action', { room: roomCode, token: a.token, type: 'ban', skillId: 'jiubaK' });
+    await jpost(base, '/api/action', { room: roomCode, token: b.token, type: 'ban', skillId: 'yuandu' });
     sa = await snapshot(base, roomCode, a.token);
     assert.strictEqual(sa.phase, 'playing');
     assert.strictEqual(sa.players[sa.turn].hp, 20); // 先手20血
@@ -116,16 +123,14 @@ function snapshot(base, roomCode, token) {
     assert.strictEqual(back.playerIdx, 0);
   });
 
-  await test('再来一局：双方确认后重置', async () => {
+  await test('再来一局：双方确认后重置到禁用阶段', async () => {
     await jpost(base, '/api/action', { room: roomCode, token: a.token, type: 'rematch' });
     let s = await snapshot(base, roomCode, a.token);
     assert.strictEqual(s.rematch[0], true);
     assert.strictEqual(s.over, false);
     await jpost(base, '/api/action', { room: roomCode, token: b.token, type: 'rematch' });
     s = await snapshot(base, roomCode, a.token);
-    assert.strictEqual(s.phase, 'playing');
-    assert.strictEqual(s.players[s.turn].hp, 20);
-    assert.strictEqual(s.players[1 - s.turn].hp, 21);
+    assert.strictEqual(s.phase, 'banning');
     assert.strictEqual(s.rematch.every((v) => !v), true);
   });
 
