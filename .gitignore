@@ -4,3 +4,8 @@ tools/
 .DS_Store
 tangwu-game.zip
 public/debug-hands.html
+
+# Generated shared browser scripts (Vercel build)
+/public/skills.js
+/public/engine.js
+/public/ai.js
