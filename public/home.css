@@ -63,3 +63,10 @@ html[data-motion=reduced] .showcase-cards { transform:none; }body:not(.home-moti
 @media(prefers-reduced-motion:reduce) { .showcase-cards { transform:none!important; }.home-showcase *,.home-launcher,.home-editorial { animation:none!important;transition:none!important; } }
 @media(max-width:480px) { .home-showcase { height:292px; }.home-launcher input,.home-launcher select { font-size:16px; }.home-launcher input::placeholder { font-size:12px; } }
 @media(max-width:380px) { .showcase-cards { scale:.82; transform-origin:50% 60%; }.home-showcase { height:275px; }.home-footnote { flex-wrap:wrap; row-gap:6px; }.home-footnote a { margin-left:0; }.entry-tabs { gap:18px; } }
+
+.deck-controls { display:flex; align-items:center; justify-content:center; gap:12px; margin:-6px 0 15px; position:relative; z-index:4; }
+.deck-controls button { min-height:30px; padding:3px 9px; border-color:#8197b522; border-radius:6px; background:transparent; color:#92a5c1; font-size:12px; }
+.deck-controls .deck-position { font:10px Consolas,monospace; color:#788da9; letter-spacing:1px; min-width:52px; text-align:center; }
+.deck-controls [data-deck-pause] { font-size:10px; border:0; color:#8194af; }
+.showcase-card { backface-visibility:hidden; }
+@media(max-width:480px) { .deck-controls { margin-top:2px; margin-bottom:14px; } }
