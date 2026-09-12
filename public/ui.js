@@ -117,7 +117,6 @@ function addChoicesHTML(p, o, catalog, banned = []) {
 // 通用界面设置：音效可关闭，规则与结果弹窗可键盘访问。
 (() => {
   const init = () => {
-    document.querySelectorAll('[data-hero-hands]').forEach((el) => { el.innerHTML = handSVG(2) + '<span class="versus">vs.</span>' + handSVG(8); });
     const bar = document.querySelector('.header-btns');
     if (bar) {
       const button = document.createElement('button');

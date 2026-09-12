@@ -426,7 +426,7 @@ $('#btn-copy').onclick = () => {
   navigator.clipboard.writeText(link).then(() => toast('已复制邀请链接'), () => toast('复制失败，请手动复制'));
 };
 $('#btn-rematch').onclick = () => send({ type: 'rematch' });
-$('#name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doCreate(); });
+$('#name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.home-entry-panel:not(.hidden) .primary')?.click(); });
 $('#code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
 
 // ---------- 日志滚动：上翻阅读不被拉回，点「最新」回底部 ----------

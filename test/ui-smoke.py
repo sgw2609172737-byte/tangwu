@@ -51,10 +51,10 @@ try:
         assert page.evaluate('G === null')
         page.locator('#menu').wait_for(state='visible')
         assert page.locator('#ai-thinking').is_hidden()
-        page.goto(base+'/');page.locator('#lobby').wait_for(state='visible');page.locator('#name-input').fill('测试甲');page.locator('#btn-create').click();page.locator('#waiting').wait_for(state='visible')
+        page.goto(base+'/');page.locator('#lobby').wait_for(state='visible');page.locator('#name-input').fill('测试甲');page.locator('[data-entry=host]').click();page.locator('#btn-create').click();page.locator('#waiting').wait_for(state='visible')
         code=page.locator('#bigcode').inner_text()
         other=browser.new_page();other.on('pageerror',lambda e:errors.append(str(e)))
-        other.goto(base+'/');other.locator('#name-input').fill('测试乙');other.locator('#code-input').fill(code);other.locator('#btn-join').click()
+        other.goto(base+'/');other.locator('#name-input').fill('测试乙');other.locator('[data-entry=join]').click();other.locator('#code-input').fill(code);other.locator('#btn-join').click()
         page.locator('[data-ban]').first.click();other.locator('[data-ban]').nth(1).click()
         page.locator('#game').wait_for(state='visible');other.locator('#game').wait_for(state='visible')
         assert page.locator('#game svg.hand').count()==4

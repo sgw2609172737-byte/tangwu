@@ -5,11 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>唐五 · 本地版</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="home.css">
 
 </head>
 <body>
 <header>
-  <div class="logo">唐五<span class="brand-sub">手势对战</span></div>
+  <div class="logo modern-brand"><span class="brand-mark" aria-hidden="true">T<span>W</span></span><span>唐五</span><span class="brand-sub">STRATEGY DUEL</span></div>
   <div class="roominfo" id="subinfo">本地对战</div>
   <div class="header-btns"><a class="header-link" href="artbook.html" target="_blank" rel="noopener">图鉴</a><button id="btn-rules" class="ghost">规则</button><button id="btn-back" class="ghost hidden">菜单</button></div>
 </header>
@@ -17,14 +18,14 @@
 <main>
   <!-- 菜单 -->
   <section id="menu" class="home-layout panel">
-    <div class="hero">
-      <span class="eyebrow">双手之间，自有胜负</span>
-      <h1>一手算局，<br><em>一手出招。</em></h1>
-      <p class="hero-copy">相加变换手势，用费用释放技能。进攻、蓄势或反制，每一手都是你的选择。</p>
-      <div class="hero-hands" aria-hidden="true" data-hero-hands></div>
-      <div class="hero-facts"><span><b>双人博弈</b>联机 / 同屏 / 人机</span><span><b>0—9</b>十种技能手</span><span><b>20 / 21</b>先手 / 后手生命</span></div>
+    <div class="hero home-editorial">
+      <div class="home-kicker"><span></span> TANGWU <i>/</i> STRATEGY DUEL</div>
+      <h1>下一手，<br><em>由你掌控。</em></h1>
+      <p class="hero-copy">数字是起点，策略决定走向。<br>积蓄力量、组合连携，在交锋中找到你的解法。</p>
+      <div class="home-showcase" aria-hidden="true"><div class="showcase-orbit"></div><div class="showcase-halo"></div><div class="showcase-cards" data-showcase></div><span class="showcase-caption">蓄势 · 连携 · 反制</span></div>
+      <div class="home-footnote"><span>40 种技能</span><i></i><span>10 种数字手势</span><i></i><a href="artbook.html" target="_blank" rel="noopener">探索技能图鉴 ↗</a></div>
     </div>
-    <div class="play-panel"><span class="eyebrow">就位，开始下一局</span><h2>选择你的对手</h2><p class="sub">随时开局，本地模式无需联网。</p>
+    <div class="play-panel home-launcher"><div class="launcher-heading"><span class="launcher-tag">本地游戏</span><span class="launcher-symbol" aria-hidden="true">↗</span></div><h2>选择你的对手</h2><p class="sub">同屏对坐，或与 AI 切磋。</p>
     <div class="menu-opt"><div class="seg" id="mode-seg" aria-label="对战模式">
       <button data-mode="pve" class="on" aria-pressed="true">人机对战<small>挑战电脑</small></button>
       <button data-mode="pvp" aria-pressed="false">本地双人<small>同屏轮流</small></button>
@@ -32,7 +33,7 @@
     </div><div id="diff-row"><span>AI 难度</span><div class="seg" id="diff-seg">
       <button data-diff="easy" aria-pressed="false">简单</button><button data-diff="normal" class="on" aria-pressed="true">普通</button><button data-diff="hard" aria-pressed="false">困难</button>
     </div><p class="difficulty-note" id="difficulty-note">会权衡攻守并预判后续行动，适合熟悉规则后挑战。</p></div>
-    <button id="btn-start" class="primary">开始对局 →</button><button id="btn-online" class="ghost">邀请朋友 · 线上联机</button></div><details class="quick-rules"><summary>第一次玩？三步开始</summary><p>① 双方各禁用一个技能。<br>② 用你的技能手，加上对方费用手的个位或技能手，结果取个位。<br>③ 选择对应技能并支付费用，也可以空过。将对手生命降至 0 获胜；小心假人复活和反弹。</p></details></div>
+    <button id="btn-start" class="primary launch-action">开始对局 →</button><button id="btn-online" class="ghost">邀请朋友 · 线上联机</button></div><details class="quick-rules"><summary>第一次玩？三步开始</summary><p>① 双方各禁用一个技能。<br>② 用你的技能手，加上对方费用手的个位或技能手，结果取个位。<br>③ 选择对应技能并支付费用，也可以空过。将对手生命降至 0 获胜；小心假人复活和反弹。</p></details></div>
   </section>
 
   <!-- 盲ban -->
@@ -80,6 +81,7 @@
 <script src="../ai.js"></script>
 <script src="ui.js"></script>
 <script src="battle-fx.js"></script>
+<script src="home.js"></script>
 <script src="local.js"></script>
 </body>
 </html>

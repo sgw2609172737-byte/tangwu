@@ -6,10 +6,11 @@
 <meta name="theme-color" content="#101f2a">
 <title>唐五 · 联机对战</title>
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="home.css">
 </head>
 <body>
 <header>
-  <div class="logo">唐五<span class="brand-sub">手势对战</span></div>
+  <div class="logo modern-brand"><span class="brand-mark" aria-hidden="true">T<span>W</span></span><span>唐五</span><span class="brand-sub">STRATEGY DUEL</span></div>
   <div class="roominfo" id="roominfo"></div>
   <div class="header-btns"><a class="header-link" href="artbook.html" target="_blank" rel="noopener">图鉴</a>
     <button id="btn-rules" class="ghost">规则</button>
@@ -19,18 +20,36 @@
 
 <main>
   <!-- 大厅 -->
-  <section id="lobby" class="home-layout panel hidden"><div class="hero">
-      <span class="eyebrow">双手之间，自有胜负</span>
-      <h1>一手算局，<br><em>一手出招。</em></h1>
-      <p class="hero-copy">相加变换手势，用费用释放技能。进攻、蓄势或反制，每一手都是你的选择。</p>
-      <div class="hero-hands" aria-hidden="true" data-hero-hands></div>
-      <div class="hero-facts"><span><b>双人博弈</b>联机 / 同屏 / 人机</span><span><b>0—9</b>十种技能手</span><span><b>20 / 21</b>先手 / 后手生命</span></div>
+  <section id="lobby" class="home-layout panel hidden"><div class="hero home-editorial">
+      <div class="home-kicker"><span></span> TANGWU <i>/</i> STRATEGY DUEL</div>
+      <h1>下一手，<br><em>由你掌控。</em></h1>
+      <p class="hero-copy">数字是起点，策略决定走向。<br>积蓄力量、组合连携，在交锋中找到你的解法。</p>
+      <div class="home-showcase" aria-hidden="true"><div class="showcase-orbit"></div><div class="showcase-halo"></div><div class="showcase-cards" data-showcase></div><span class="showcase-caption">蓄势 · 连携 · 反制</span></div>
+      <div class="home-footnote"><span>40 种技能</span><i></i><span>10 种数字手势</span><i></i><a href="artbook.html" target="_blank" rel="noopener">探索技能图鉴 ↗</a></div>
     </div>
-    <div class="play-panel"><span class="eyebrow">隔着屏幕，也能过招</span><h2>进入对局</h2><p class="sub">创建房间邀请朋友，或直接挑战 AI。</p>
-      <label class="field-label" for="name-input">你的昵称</label><div class="join-row"><input id="name-input" placeholder="取个名字，准备出招" maxlength="12" autocomplete="nickname"><button id="btn-create" class="primary">创建房间</button></div>
-      <label class="field-label" for="code-input">已有邀请？输入房间码</label><div class="join-row"><input id="code-input" placeholder="4 位房间码" maxlength="4" autocomplete="off" autocapitalize="characters"><button id="btn-join">加入房间</button></div>
-      <div class="play-divider"></div><label class="field-label" for="ai-diff">单人练习</label><div class="join-row"><select id="ai-diff"><option value="easy">简单 · 熟悉规则</option><option value="normal" selected>普通 · 攻守兼顾</option><option value="hard">困难 · 深入预判</option></select><button id="btn-create-ai" class="primary">挑战 AI</button></div>
-      <p class="panel-note"><a href="local.html">本地双人 / AI 观战 →</a></p><div id="lobby-err" class="err" role="alert"></div><details class="quick-rules"><summary>第一次玩？三步开始</summary><p>① 双方各禁用一个技能。<br>② 用你的技能手，加上对方费用手的个位或技能手，结果取个位。<br>③ 选择对应技能并支付费用，也可以空过。将对手生命降至 0 获胜；小心假人复活和反弹。</p></details></div>
+    <div class="play-panel home-launcher"><div class="launcher-heading"><span class="launcher-tag">开始游戏</span><span class="launcher-symbol" aria-hidden="true">↗</span></div><h2>准备好出下一手？</h2><p class="sub">独自练习，或邀请朋友来一场较量。</p>
+      <div class="entry-tabs" role="tablist" aria-label="进入游戏的方式">
+        <button id="entry-ai" role="tab" aria-selected="true" aria-controls="panel-ai" data-entry="ai" class="on">人机挑战</button>
+        <button id="entry-host" role="tab" aria-selected="false" aria-controls="panel-host" data-entry="host" tabindex="-1">创建房间</button>
+        <button id="entry-join" role="tab" aria-selected="false" aria-controls="panel-join" data-entry="join" tabindex="-1">加入房间</button>
+      </div>
+      <label class="field-label" for="name-input">你的昵称</label><input id="name-input" placeholder="让对手记住你的名字" maxlength="12" autocomplete="nickname">
+      <div id="panel-ai" class="home-entry-panel" role="tabpanel" aria-labelledby="entry-ai">
+        <label class="field-label" for="ai-diff">选择难度</label><select id="ai-diff"><option value="easy">简单 · 熟悉规则</option><option value="normal" selected>普通 · 攻守兼顾</option><option value="hard">困难 · 深入预判</option></select>
+        <p class="entry-description">独立思考，步步较量。先从一局开始。</p><button id="btn-create-ai" class="primary launch-action">开始挑战 <span aria-hidden="true">→</span></button>
+      </div>
+      <div id="panel-host" class="home-entry-panel hidden" role="tabpanel" aria-labelledby="entry-host">
+        <div class="entry-room-note"><span aria-hidden="true">↗</span><div><strong>把邀请留给朋友</strong><p>创建后获得专属房间码和邀请链接。</p></div></div>
+        <button id="btn-create" class="primary launch-action">创建房间 <span aria-hidden="true">→</span></button>
+      </div>
+      <div id="panel-join" class="home-entry-panel hidden" role="tabpanel" aria-labelledby="entry-join">
+        <label class="field-label" for="code-input">房间码</label><input id="code-input" placeholder="输入朋友的 4 位房间码" maxlength="4" autocomplete="off" autocapitalize="characters">
+        <p class="entry-description">输入房间码，就能坐到朋友的对面。</p><button id="btn-join" class="primary launch-action">进入房间 <span aria-hidden="true">→</span></button>
+      </div>
+      <div id="lobby-err" class="err" role="alert"></div>
+      <a class="offline-entry" href="local.html">本地双人 / AI 观战 <span aria-hidden="true">↗</span></a>
+      <details class="quick-rules"><summary>初次见面，了解玩法</summary><p>双方先各禁用一个技能，再用技能手与对方一只手相加、取个位，选择对应技能并支付费用。先手 20 血、后手 21 血；小心连携、假人和反弹。</p></details>
+    </div>
   </section>
 
   <!-- 等待 -->
@@ -91,6 +110,7 @@
 
 <script src="ui.js"></script>
 <script src="battle-fx.js"></script>
+<script src="home.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
