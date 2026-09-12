@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>唐五 · 技能图鉴</title><link rel="stylesheet" href="style.css"></head>
+<body><header><div class="logo">唐五<span class="brand-sub">技能图鉴</span></div><div class="roominfo">40 种技能 · 独立插画</div><div class="header-btns"><a class="header-link" href="local.html">进入游戏</a></div></header>
+<main><div class="artbook-intro"><div><span class="eyebrow">每一手，都有自己的力量</span><h1>技能图鉴</h1><p class="sub">点击插画预览施放效果；这里只展示演出，不计入对局。</p></div><button id="demo-combo" class="primary">预览 98K 连携</button></div>
+<div class="artbook-stage" id="demo-stage"><div class="player-card" id="demo-source"><div class="p-name">施放方</div><div data-demo-hand="2"></div></div><div class="player-card" id="demo-target"><div class="p-name">目标方</div><div data-demo-hand="5"></div></div></div>
+<div class="ban-tools"><input id="art-search" aria-label="搜索技能" placeholder="搜索技能名称或效果"><div class="ban-chips" id="art-filters"></div></div>
+<div class="artbook-grid" id="art-grid"></div></main>
+<script src="../skills.js"></script><script src="ui.js"></script><script src="battle-fx.js"></script>
+<script>
+const artCatalog=window.__TW_skills.SKILLS;
+const artItems=Object.entries(artCatalog).flatMap(([digit,list])=>list.map((sk)=>({...sk,digit:Number(digit)})));
+let artCost=-1,artQuery='',demoSeq=0;
+const demoCards=[document.querySelector('#demo-source'),document.querySelector('#demo-target')];
+TW_FX.sync({visualSeq:0,visualEvents:[]},demoCards,artCatalog);
+document.querySelectorAll('[data-demo-hand]').forEach((el)=>{el.innerHTML=handSVG(Number(el.dataset.demoHand));});
+function previewSkill(id,combo=false) {
+  document.querySelector('#demo-stage').scrollIntoView({block:'center',behavior:'instant'});
+  TW_FX.sync({visualSeq:++demoSeq,visualEvents:[{seq:demoSeq,kind:'cast',source:0,skillId:id,combo}]},demoCards,artCatalog);
+}
+function renderArt() {
+  document.querySelector('#art-grid').innerHTML=artItems.filter((sk)=>(artCost<0||sk.digit===artCost)&&(sk.name+sk.desc).includes(artQuery)).map((sk)=>skillCardHTML(sk,sk.digit,true)).join('')||'<p class="empty-state">没有匹配技能，请更换筛选条件。</p>';
+}
+document.querySelector('#art-grid').onclick=(e)=>{const button=e.target.closest('[data-skill-id]');if(button)previewSkill(button.dataset.skillId);};
+document.querySelector('#demo-combo').onclick=()=>previewSkill('jiubaK',true);
+document.querySelector('#art-search').oninput=(e)=>{artQuery=e.target.value.trim();renderArt();};
+document.querySelector('#art-filters').innerHTML=[-1,0,1,2,3,4,5,6,7,8,9].map((cost)=>`<button class="chip ${cost<0?'on':''}" data-cost="${cost}">${cost<0?'全部':cost+'$'}</button>`).join('');
+document.querySelector('#art-filters').onclick=(e)=>{const button=e.target.closest('[data-cost]');if(!button)return;artCost=Number(button.dataset.cost);document.querySelectorAll('[data-cost]').forEach((b)=>b.classList.toggle('on',b===button));renderArt();};
+renderArt();
+</script></body></html>

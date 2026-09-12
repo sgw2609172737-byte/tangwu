@@ -1,233 +1,167 @@
 'use strict';
-// 唐五 AI：纯逻辑，三档难度（easy/normal/hard），零外部依赖
-// 双环境：Node 里 module.exports（服务端人机对战）；浏览器里 window.__TWAI（本地版）
-// hard = 迭代加深 α-β 搜索（时间预算内尽量加深），normal = 我→对手→我，easy = 随机为主
+// 共享、零依赖 AI：局面评估 + 有预算的迭代加深 alpha-beta 搜索。
 (function () {
   const ENG = (typeof window !== 'undefined' && window.__TW_engine) ? window.__TW_engine : require('./engine');
   const SK = (typeof window !== 'undefined' && window.__TW_skills) ? window.__TW_skills : require('./skills');
-
-  const TIMEOUT = { timeout: true };
-
+  const TIMEOUT = {};
+  const actorOf = (g) => g.controller >= 0 ? g.controller : g.turn;
+  // 搜索不携带历史日志；完整复制可变的嵌套状态，绝不写入真实对局。
   function cloneGame(g) {
-    return ENG.deserializeGame(ENG.serializeGame(g));
+    return { ...g, log: [], chainDigits: new Set(g.chainDigits), banned: [...g.banned], banPicks: [...g.banPicks],
+      players: g.players.map((p) => ({ ...p, dummy: { ...p.dummy }, yingneng: { ...p.yingneng },
+        qibu: { ...p.qibu }, duming: { ...p.duming }, chaofeng: { ...p.chaofeng }, delayed: p.delayed.map((d) => ({ ...d })) })) };
   }
-  function actorOf(g) { return g.controller >= 0 ? g.controller : g.turn; }
-
   function legalActions(g) {
-    if (g.over) return [];
+    if (g.over || g.phase !== 'playing') return [];
     const p = g.players[g.turn];
+    if (g.step === 'awaitAdd') return [{ type: 'add', choice: 0 }, { type: 'add', choice: 1 }];
+    if (g.step !== 'awaitAction') return [];
     const out = [];
-    if (g.step === 'awaitAdd') {
-      out.push({ type: 'add', choice: 0 });
-      out.push({ type: 'add', choice: 1 });
-    } else if (g.step === 'awaitAction') {
-      const digit = p.skill;
-      const list = SK.SKILLS[digit] || [];
-      if (p.streak >= 24) { out.push({ type: 'pass' }); return out; } // 连出上限：只能空过
-      if (p.energy >= digit) {
-        list.forEach((sk, i) => {
-          if (g.banned && g.banned.indexOf(sk.id) >= 0) return; // 跳过被禁技能
-          if (sk.id === 'gongping') {
-            const buffs = SK.positiveBuffs(g.players[1 - g.turn]);
-            if (buffs.length) buffs.forEach((b, bi) => out.push({ type: 'act', skillIdx: i, buffIdx: bi }));
-            else out.push({ type: 'act', skillIdx: i });
-          } else {
-            out.push({ type: 'act', skillIdx: i });
-          }
-        });
-      }
-      out.push({ type: 'pass' });
+    if (p.streak < 24 && p.energy >= p.skill) {
+      (SK.SKILLS[p.skill] || []).forEach((sk, i) => {
+        if (g.banned.includes(sk.id)) return;
+        if (sk.id === 'gongping') {
+          const buffs = SK.positiveBuffs(g.players[1 - g.turn]);
+          if (buffs.length) { buffs.forEach((b, bi) => out.push({ type: 'act', skillIdx: i, buffIdx: bi })); return; }
+        }
+        out.push({ type: 'act', skillIdx: i });
+      });
     }
+    out.push({ type: 'pass' });
     return out;
   }
-
   function apply(g, a) {
-    if (a.type === 'add') ENG.addHand(g, a.choice);
-    else if (a.type === 'act') ENG.actSkill(g, a.skillIdx, { buffIdx: a.buffIdx });
-    else if (a.type === 'pass') ENG.passTurn(g);
+    if (a.type === 'add') return ENG.addHand(g, a.choice);
+    if (a.type === 'act') return ENG.actSkill(g, a.skillIdx, { buffIdx: a.buffIdx });
+    return ENG.passTurn(g);
   }
-
-  // 手牌"推进能力"：攻击(8) > 七步持续伤(6) > 数字技能·再次行动(4) > 其它(0)
-  // 用于引导 AI 主动换到能推进胜利的手，避免卡在无攻击手（如反复幻雾/氮笑/净化）上死循环
-  function handPower(g, pl) {
-    const list = SK.SKILLS[pl.skill] || [];
-    let t = 0;
-    for (const s of list) {
-      if (g.banned && g.banned.indexOf(s.id) >= 0) continue;
-      if (s.isAttack) return 8;
-      if (s.id === 'qibu') t = Math.max(t, 6);
-      else if (s.grantsAgain) t = Math.max(t, 4);
+  function handPower(g, p) {
+    if (p.energy < p.skill) return -2;
+    let power = 0;
+    for (const sk of SK.SKILLS[p.skill] || []) {
+      if (g.banned.includes(sk.id)) continue;
+      power = Math.max(power, sk.isAttack ? 7 : sk.grantsAgain ? 5 : sk.id === 'qibu' ? 6 : 1);
     }
-    return t;
+    return power;
   }
-
-  // 评估函数：从 aiIdx 视角给局面打分（越高越好）——激进型（轻量，不含战术检测，保证搜索深度）
+  function playerValue(g, p) {
+    const hp = p.hp * 10 - Math.max(0, 11 - p.hp) * 9;
+    const delayed = p.delayed.reduce((sum, d) => sum + d.dmg, 0);
+    const deathClock = p.duming.active ? 12 + 65 / Math.max(1, p.duming.turnsLeft) : 0;
+    return hp + p.energy * 2.4 + handPower(g, p)
+      + (p.dummy.alive ? 20 + Math.min(25, p.dummy.hp) * 5 : 0)
+      + p.shuangbei * 9 + p.huxi * 13 + (p.qianghua ? 9 : 0)
+      + (p.wudi ? 20 : 0) + (p.jingji ? 10 : 0) + (p.cuidu ? 12 : 0)
+      + (p.bishi ? 7 : 0) + (p.tanghua ? 3 : 0)
+      + (p.yingneng.active ? 4 + p.yingneng.idle * 4 : 0)
+      + (p.chaofeng.pending ? 7 : 0)
+      - (p.qibu.stage === 1 ? 25 : p.qibu.stage === 2 ? 16 : 0)
+      - delayed * 7 - p.freeze * 12 - deathClock;
+  }
   function evalGame(g, aiIdx) {
-    if (g.over) {
-      if (g.result === 'draw') return 0;
-      return g.winner === aiIdx ? 100000 : -100000;
-    }
-    const me = g.players[aiIdx], o = g.players[1 - aiIdx];
-    let s = 0;
-    const hpD = me.hp - o.hp;
-    s += hpD * 9;                                   // 血量差（最重要）
-    if (o.hp <= 10) s += (10 - o.hp) * 10;          // 斩杀逼近：对方进斩杀线就抢
-    if (me.hp <= 10) s -= (10 - me.hp) * 10;        // 自己危险时优先保命
-    s += (me.energy - o.energy) * 1.5;              // 费用差（适度，鼓励攒费换攻击手但不过度囤积）
-    s += (me.cumulativeDmg - o.cumulativeDmg) * 1.5; // 累计伤害差（鼓励持续压制）
-    if (me.dummy.alive) s += 10;                    // 假人 = 第二条命
-    if (o.dummy.alive) s -= 10;
-    const posOf = (pl) => (pl.shuangbei || 0) * 5 + (pl.huxi || 0) * 6 + (pl.qianghua ? 4 : 0)
-      + (pl.wudi ? 7 : 0) + (pl.jingji ? 3 : 0) + (pl.yingneng.active ? 3 : 0)
-      + (pl.bishi ? 3 : 0) + (pl.cuidu ? 6 : 0) + (pl.tanghua ? 2 : 0);
-    s += posOf(me) - posOf(o);                      // 正面 buff 差（含层数）
-    if (me.qibu.stage > 0) s -= 12;                 // 负面状态
-    if (o.qibu.stage > 0) s += 12;
-    if (me.duming.active) s -= 8;                   // 赌命倒计时压力
-    if (o.duming.active) s += 8;
-    if (me.freeze > 0) s -= 10;
-    if (o.freeze > 0) s += 10;
-    s += o.delayed.length * 6 - me.delayed.length * 6; // 延迟伤害
-    const mePower = handPower(g, me), oPower = handPower(g, o);
-    s += mePower - oPower;                          // 手牌推进能力：偏好能攻击/能再次行动的手
-    if (g.chainCount >= 2) s += 14;                 // 98K 连携威胁（鼓励攒链）
-    if (g.chainCount >= 3) s += 20;
-    return s;
+    if (g.over) return g.result === 'draw' ? 0 : g.winner === aiIdx ? 100000 : -100000;
+    let score = playerValue(g, g.players[aiIdx]) - playerValue(g, g.players[1 - aiIdx]);
+    // 连携属于出招者，不能在两个玩家的视角都加分。
+    const chain = Math.min(3, g.chainCount) * 5 + (g.chainCount >= 3 && g.chainDigits.size >= 2 ? 18 : 0);
+    score += (g.turn === aiIdx ? 1 : -1) * chain;
+    if (g.controller >= 0) score += g.controller === aiIdx ? 12 : -12;
+    return score;
   }
-
-  // 战术必杀过滤器：当前玩家一步能直接斩杀 → 立即返回该动作（不进入搜索）
-  function findKill(g) {
-    if (g.over || g.step !== 'awaitAction') return null;
-    const p = g.players[g.turn];
-    if (p.energy < p.skill) return null;
-    const list = SK.SKILLS[p.skill] || [];
-    for (let i = 0; i < list.length; i++) {
-      if (!list[i].isAttack) continue;
-      if (g.banned && g.banned.indexOf(list[i].id) >= 0) continue; // 被禁技能不可用
-      const c = cloneGame(g);
-      ENG.actSkill(c, i, {});
-      if (c.over && c.winner === g.turn) return { type: 'act', skillIdx: i };
+  const actionKey = (a) => `${a.type}:${a.choice ?? ''}:${a.skillIdx ?? ''}:${a.buffIdx ?? ''}`;
+  function children(g, aiIdx, preferred) {
+    const maximize = actorOf(g) === aiIdx;
+    const seen = new Set();
+    const out = [];
+    for (const a of legalActions(g)) {
+      const next = cloneGame(g);
+      apply(next, a);
+      const key = positionKey(next);
+      // 两只手相同、重复增益等动作可抵达同一状态，只搜索一次。
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({ a, g: next, value: evalGame(next, aiIdx) });
     }
-    return null;
-  }
-
-  // 动作排序：对 maximize 节点先试"立即评估最好"的动作（利于 α-β 剪枝）
-  function ordered(g, aiIdx, actions, maximize) {
-    const scored = actions.map((a) => {
-      const c = cloneGame(g);
-      apply(c, a);
-      return { a, v: evalGame(c, aiIdx) };
+    return out.sort((a, b) => {
+      if (preferred) {
+        const d = Number(actionKey(b.a) === preferred) - Number(actionKey(a.a) === preferred);
+        if (d) return d;
+      }
+      return maximize ? b.value - a.value : a.value - b.value;
     });
-    scored.sort((x, y) => (maximize ? y.v - x.v : x.v - y.v));
-    return scored.map((s) => s.a);
   }
-
-  // 战术延伸（quiescence）：深度耗尽但局面"热"（有人濒死且能动手）时再往下看 1 层，
-  // 避免"该杀不杀、被杀没看见"的水平线短视
-  function quiesce(g, aiIdx, deadline) {
+  function positionKey(g) {
+    const { log, banPicks, visualEvents, visualSeq, ...position } = g;
+    return JSON.stringify({ ...position, chainDigits: [...g.chainDigits].sort() });
+  }
+  function checkBudget(ctx) {
+    if (++ctx.nodes > ctx.maxNodes || Date.now() >= ctx.deadline) throw TIMEOUT;
+  }
+  function search(g, aiIdx, depth, alpha, beta, ctx) {
+    checkBudget(ctx);
     if (g.over) return evalGame(g, aiIdx);
-    if (Date.now() > deadline) return evalGame(g, aiIdx);
-    const p = g.players[g.turn], o = g.players[1 - g.turn];
-    // 热局面判定：本方能放技能且对方血量可能被斩杀，或自己危险
-    const hot = (o.hp <= 14 && p.energy >= p.skill) || (p.hp <= 14 && o.energy >= o.skill);
-    if (!hot) return evalGame(g, aiIdx);
-    const actions = legalActions(g);
-    if (!actions.length) return evalGame(g, aiIdx);
+    // 在相加节点多看一步，把费用不足导致的自动空过纳入叶子评估。
+    if (depth <= 0 && g.step !== 'awaitAdd') return evalGame(g, aiIdx);
+    if (depth < -1) return evalGame(g, aiIdx);
+    const key = positionKey(g);
+    const cached = ctx.table.get(key);
+    const oldAlpha = alpha, oldBeta = beta;
+    if (cached && cached.depth >= depth) {
+      if (cached.flag === 'exact') return cached.value;
+      if (cached.flag === 'lower') alpha = Math.max(alpha, cached.value);
+      else beta = Math.min(beta, cached.value);
+      if (alpha >= beta) return cached.value;
+    }
+    const list = children(g, aiIdx, cached && cached.action);
+    if (!list.length) return evalGame(g, aiIdx);
     const maximize = actorOf(g) === aiIdx;
-    let best = maximize ? -Infinity : Infinity;
-    for (const a of actions) {
-      const c = cloneGame(g);
-      apply(c, a);
-      const v = evalGame(c, aiIdx);
-      best = maximize ? Math.max(best, v) : Math.min(best, v);
+    let best = maximize ? -Infinity : Infinity, bestAction;
+    for (const child of list) {
+      const value = search(child.g, aiIdx, depth - 1, alpha, beta, ctx);
+      if (maximize ? value > best : value < best) { best = value; bestAction = actionKey(child.a); }
+      if (maximize) alpha = Math.max(alpha, best); else beta = Math.min(beta, best);
+      if (alpha >= beta) break;
     }
+    if (ctx.table.size < 30000) ctx.table.set(key, { depth, value: best, action: bestAction,
+      flag: best <= oldAlpha ? 'upper' : best >= oldBeta ? 'lower' : 'exact' });
     return best;
   }
-
-  function minimax(g, aiIdx, depth, alpha, beta, deadline) {
-    if (Date.now() > deadline) throw TIMEOUT;
-    if (g.over) return evalGame(g, aiIdx);
-    if (depth <= 0) return quiesce(g, aiIdx, deadline);
-    const actions = legalActions(g);
-    if (!actions.length) return evalGame(g, aiIdx);
-    const maximize = actorOf(g) === aiIdx;
-    // 不排序：本游戏分支很小（≤6），排序开销远大于剪枝收益，直接原序可显著加深
-    const list = actions;
-    let best = maximize ? -Infinity : Infinity;
-    for (const a of list) {
-      const c = cloneGame(g);
-      apply(c, a);
-      const v = minimax(c, aiIdx, depth - 1, alpha, beta, deadline);
-      if (maximize) {
-        best = Math.max(best, v);
-        alpha = Math.max(alpha, v);
-      } else {
-        best = Math.min(best, v);
-        beta = Math.min(beta, v);
-      }
-      if (beta <= alpha) break;
-    }
-    return best;
-  }
-
-  // 固定深度（normal 用）：我→对手→我
-  function bestByEval(g, aiIdx, actions, depth) {
-    let best = null, bestScore = -Infinity;
-    for (const a of ordered(g, aiIdx, actions, true)) {
-      const c = cloneGame(g);
-      apply(c, a);
-      const score = (c.over ? evalGame(c, aiIdx) : minimax(c, aiIdx, depth, -Infinity, Infinity, Infinity)) + Math.random() * 0.001;
-      if (score > bestScore) { bestScore = score; best = a; }
-    }
-    return best;
-  }
-
-  // 迭代加深（hard 用）：时间预算内逐层加深，用"完整算完的最深层"结果
-  function hardSearch(g, aiIdx, actions, timeMs) {
-    const deadline = Date.now() + timeMs;
-    let best = null;
-    for (let depth = 2; depth <= 14; depth++) {
-      let dBest = null, dBScore = -Infinity, ok = true;
-      try {
-        for (const a of ordered(g, aiIdx, actions, true)) {
-          const c = cloneGame(g);
-          apply(c, a);
-          const score = (c.over ? evalGame(c, aiIdx) : minimax(c, aiIdx, depth, -Infinity, Infinity, deadline)) + Math.random() * 0.001;
-          if (score > dBScore) { dBScore = score; dBest = a; }
-        }
-      } catch (e) {
-        if (e === TIMEOUT) ok = false; else throw e;
-      }
-      if (!ok || Date.now() > deadline) break;
-      best = dBest;
-    }
-    return best || bestByEval(g, aiIdx, actions, 1);
-  }
-
-  // 对外：为决策者挑一个动作。timeMs 仅对 hard 生效（服务端可传小预算）
-  function chooseAction(g, aiIdx, difficulty, timeMs) {
-    const actions = legalActions(g);
-    if (!actions.length) return null;
-    // 战术必杀：本回合一步能杀就杀（任何难度都不该放过白捡的斩杀）
-    const kill = findKill(g);
-    if (kill) return kill;
+  function chooseAction(g, aiIdx, difficulty = 'normal', timeMs) {
+    if (actorOf(g) !== aiIdx) return null;
+    const list = children(g, aiIdx);
+    if (!list.length) return null;
+    // 包括持续伤害/反弹等非攻击胜法；只接受真正决策者的胜利。
+    const kill = list.find((c) => c.g.over && c.g.winner === aiIdx);
+    if (kill) return kill.a;
+    if (list.length === 1) return list[0].a;
     if (difficulty === 'easy') {
-      if (Math.random() < 0.5) return actions[(Math.random() * actions.length) | 0];
-      return bestByEval(g, aiIdx, actions, 1);
+      return Math.random() < 0.45 ? list[Math.floor(Math.random() * list.length)].a : list[0].a;
     }
-    if (difficulty === 'normal') return bestByEval(g, aiIdx, actions, 2);
-    return hardSearch(g, aiIdx, actions, timeMs || 5000); // 困难：本地预算 5 秒，尽量加深
+    const hard = difficulty === 'hard';
+    const budget = Number.isFinite(timeMs) ? Math.max(0, timeMs) : hard ? 700 : 100;
+    const ctx = { deadline: Date.now() + budget, nodes: 0, maxNodes: hard ? 40000 : 2500, table: new Map() };
+    let best = list[0].a;
+    // 只提交完整搜索完的一层；超时直接采用上一层，不额外启动无预算搜索。
+    for (let depth = 1; depth <= (hard ? 16 : 4); depth++) {
+      let candidate = best, bestScore = -Infinity, alpha = -Infinity;
+      list.sort((a, b) => Number(actionKey(b.a) === actionKey(best)) - Number(actionKey(a.a) === actionKey(best)));
+      try {
+        for (const child of list) {
+          const score = search(child.g, aiIdx, depth, alpha, Infinity, ctx);
+          if (score > bestScore) { bestScore = score; candidate = child.a; }
+          alpha = Math.max(alpha, score);
+        }
+      } catch (e) { if (e === TIMEOUT) break; throw e; }
+      best = candidate;
+      if (bestScore >= 100000) break;
+    }
+    return best;
   }
-
-  // 盲ban：AI 选一个技能禁用（盲选，无对局信息，仅按"强技能优先"）
   const BAN_POOL = ['jiubaK', 'yuandu', 'duming', 'youli', 'jijiu', 'shipo', 'cuidu', 'bing'];
   function chooseBan(g, aiIdx, difficulty) {
-    const all = Object.keys(SK.SKILLS).flatMap((d) => SK.SKILLS[d].map((s) => s.id));
-    if (difficulty === 'easy') return all[(Math.random() * all.length) | 0];
-    return BAN_POOL[(Math.random() * BAN_POOL.length) | 0];
+    const pool = difficulty === 'easy' ? Object.values(SK.SKILLS).flat().map((s) => s.id) : BAN_POOL;
+    return pool[Math.floor(Math.random() * pool.length)];
   }
-
-  const __aiExport = { chooseAction, chooseBan, legalActions, evalGame };
-  if (typeof module !== 'undefined' && module.exports) module.exports = __aiExport;
-  if (typeof window !== 'undefined') window.__TWAI = __aiExport;
+  const api = { chooseAction, chooseBan, legalActions, evalGame };
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+  if (typeof window !== 'undefined') window.__TWAI = api;
 })();

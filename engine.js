@@ -15,6 +15,11 @@ function log(g, msg) {
   g.log.push(msg);
   if (g.log.length > 400) g.log.splice(0, g.log.length - 400);
 }
+// 仅供展示的有序事件；不可作为规则或 AI 评分依据。不可变更新避免搜索副本写入实局。
+function visualEvent(g, event) {
+  g.visualSeq = (g.visualSeq || 0) + 1;
+  g.visualEvents = [...(g.visualEvents || []), { ...event, seq: g.visualSeq }].slice(-24);
+}
 function idx(g, pl) { return g.players.indexOf(pl); }
 function cur(g) { return g.players[g.turn]; }
 function opp(g) { return g.players[1 - g.turn]; }
@@ -72,6 +77,7 @@ function createGame(names) {
     banned: [],                                      // 被禁用的技能 id（盲ban，双方各选1，可重复）
     banPicks: [null, null],                          // 双方各自选的禁用技能（公示前不公开）
     log: [],
+    visualSeq: 0, visualEvents: [],
     over: false, result: null, winner: -1,
     noDamageTurns: 0,                                // 连续无人受伤的回合数（僵局裁定）
     damagedThisTurn: false,                          // 本回合是否有人受伤
@@ -116,6 +122,7 @@ function dealDamage(g, source, target, amount, opts = {}) {
   // 无敌（仅抵挡瞬时伤害，dot 不触发；98K 无视）
   if (!isDot && target.wudi && !ignoreWudi) {
     target.wudi = false;
+    visualEvent(g, { kind: 'shield-break', source: idx(g, target), skillId: 'wudi' });
     heal(g, target, 2);
     log(g, `🛡 ${target.name} 的无敌抵挡了攻击，+2血`);
     return false;
@@ -334,6 +341,7 @@ function actSkill(g, skillIdx, opts = {}) {
     dmg: (t, amt, o2 = {}) => dealDamage(g, p, t, amt, o2),
     kill: (sk.id === 'jiubaK' && g.chainCount >= 3 && g.chainDigits.size >= 2),
   };
+  visualEvent(g, { kind: 'cast', source: idx(g, p), skillId: sk.id, combo: !!ctx.kill });
   sk.run(ctx);
   if (g.over) return { ok: true };
   // 赌命：使用攻击技能后 +1 费用
@@ -421,6 +429,8 @@ function publicState(g, youIdx) {
       positiveBuffs: __positiveBuffs(p).map((b) => ({ key: b.key, name: b.name })),
     })),
     log: g.log.slice(),
+    visualSeq: g.visualSeq || 0,
+    visualEvents: (g.visualEvents || []).map((event) => ({ ...event })),
     catalog,
   };
 }

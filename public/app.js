@@ -128,9 +128,12 @@ function render() {
   $('#roominfo').textContent = me.token && state ? `房间 ${state.roomCode}` : '';
 
   if (!me.token) {
+    TW_FX.reset();
     $('#lobby').classList.remove('hidden');
     $('#waiting').classList.add('hidden');
     $('#game').classList.add('hidden');
+    $('#ban').classList.add('hidden');
+    $('#result-modal').classList.add('hidden');
     return;
   }
   if (!state) return;
@@ -141,6 +144,7 @@ function render() {
   $('#ban').classList.toggle('hidden', !inBan);
   $('#game').classList.toggle('hidden', inWaiting || inBan);
 
+  if (inWaiting || inBan) TW_FX.reset();
   if (inWaiting) {
     $('#bigcode').textContent = state.roomCode;
     const link = `${location.origin}${location.pathname}?room=${state.roomCode}`;
@@ -211,7 +215,7 @@ function renderBanGrid() {
   });
 }
 
-function hpWidth(hp) { return Math.max(0, Math.min(100, (hp / 30) * 100)); }
+function hpWidth(hp) { return Math.max(0, Math.min(100, (hp / Math.max(21, hp)) * 100)); }
 
 // 血量飘字 + 受伤闪光（跨渲染跟踪上一帧血量）
 const _prevHp = [-1, -1];
@@ -289,11 +293,13 @@ function renderGame() {
     b = '⏳ 等待对方操作…';
   }
   $('#turn-banner').textContent = b;
-  $('#turn-banner').classList.toggle('myturn', !state.over && (state.turn === myIdx || state.controller === myIdx));
+  $('#turn-banner').classList.toggle('myturn', !state.over && actor === myIdx);
   $('#turn-banner').classList.toggle('aiwait', !!state.ai && actor !== myIdx && !state.over);
   renderControls(actor);
   renderLog();
   renderResult();
+  const cards = []; cards[me.idx] = $('#me-card'); cards[1 - me.idx] = $('#opp-card');
+  TW_FX.sync(state, cards, state.catalog);
 }
 
 function renderControls(actor) {
@@ -315,21 +321,7 @@ function renderControls(actor) {
   }
   const ctrlNote = state.controller === myIdx ? `🧠 正在控制 ${turnP.name} 的回合：` : '';
   if (canAdd) {
-    const mySkill = turnP.skill;
-    const opts = [
-      { label: '费用手', val: oppP.shownE },
-      { label: '技能手', val: oppP.skill },
-    ];
-    el.innerHTML = `
-      <div class="prompt">${ctrlNote}👉 技能手与对方一只手相加（取个位），选一个数字：</div>
-      <div class="add-btns">
-        ${opts.map((o, i) => `
-          <div class="add-opt">
-            <button class="add-num" data-add="${i}" title="与对方${o.label}相加">${o.val}</button>
-            <span class="add-eq">${mySkill}+${o.val}→<b>${(mySkill + o.val) % 10}</b></span>
-          </div>`).join('')}
-      </div>
-      <div class="kbd-hint">提示：按 1 / 2 键快速选择</div>`;
+    el.innerHTML = `<div class="prompt">${ctrlNote}选择相加的手，预览下一步可用技能。</div>` + addChoicesHTML(turnP, oppP, state.catalog, state.banned);
     el.querySelectorAll('[data-add]').forEach((btn) => { btn.onclick = () => send({ type: 'add', choice: Number(btn.dataset.add) }); });
     return;
   }
@@ -365,7 +357,7 @@ function chooseSkill(skillIdx, actor) {
     overlay.className = 'modal';
     overlay.innerHTML = `
       <div class="modal-box">
-        <h2>优先去除对方哪个正面buff？（共去除2层）</h2>
+        <h2>优先去除对方哪个正面buff？（按本回合效果去除1–2层）</h2>
         <form id="buffform">
           ${list.map((b, i) => `<label class="buff-choice"><input type="radio" name="buffpick" value="${i}" ${i === 0 ? 'checked' : ''}> ${esc(b.name)}</label>`).join('')}
           <div class="btn-row"><button type="submit" class="primary">确认</button><button type="button" id="buffcancel">取消</button></div>
@@ -413,7 +405,7 @@ function renderResult() {
   if (!state.over) return;
   const myIdx = me.idx;
   $('#result-title').textContent = state.result === 'draw' ? '🤝 平局！' : (state.winner === myIdx ? '🎉 你赢了！' : '💀 你输了');
-  $('#result-sub').textContent = state.result === 'draw' ? '双方同时倒下' : `胜者：${state.players[state.winner].name}`;
+  $('#result-sub').textContent = state.result === 'draw' ? '本局平局' : `胜者：${state.players[state.winner].name}`;
   const want = state.rematch[myIdx];
   $('#btn-rematch').disabled = want;
   $('#rematch-hint').textContent = want ? '等待对方确认再来一局…' : (state.rematch[1 - myIdx] ? '对方想再来一局' : '');

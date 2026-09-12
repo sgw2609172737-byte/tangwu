@@ -5,53 +5,41 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>唐五 · 本地版</title>
 <link rel="stylesheet" href="style.css">
-<style>
-  body { min-height: 100vh; }
-  #menu { width: 100%; max-width: 480px; }
-  .menu-opt { display: flex; flex-direction: column; gap: 14px; margin-top: 8px; }
-  .seg { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-  .seg button.on { background: linear-gradient(135deg, #4c5fd5, #7a5fd0); border-color: #8b7ae0; font-weight: 600; }
-  #diff-row { display: flex; align-items: center; gap: 8px; justify-content: center; color: var(--dim); font-size: 14px; }
-  #game { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
-  .controls-local { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px 18px; backdrop-filter: blur(8px); }
-</style>
+
 </head>
 <body>
 <header>
-  <div class="logo">🖐 唐五 · 本地版</div>
-  <div class="roominfo" id="subinfo">单机 · 无需联网</div>
-  <div class="header-btns"><button id="btn-back" class="ghost hidden">🏠 菜单</button></div>
+  <div class="logo">唐五<span class="brand-sub">手势对战</span></div>
+  <div class="roominfo" id="subinfo">本地对战</div>
+  <div class="header-btns"><a class="header-link" href="artbook.html" target="_blank" rel="noopener">图鉴</a><button id="btn-rules" class="ghost">规则</button><button id="btn-back" class="ghost hidden">菜单</button></div>
 </header>
 
 <main>
   <!-- 菜单 -->
-  <section id="menu" class="panel">
-    <h2>选择模式</h2>
-    <p class="sub">本地单机，无需联网、无需服务器</p>
-    <div class="menu-opt">
-      <div class="seg" id="mode-seg">
-        <button data-mode="pve" class="on">🤖 人机对战</button>
-        <button data-mode="pvp">👥 本地双人</button>
-        <button data-mode="ai">🖥 AI 观战</button>
-      </div>
-      <div id="diff-row">
-        <span>AI 难度：</span>
-        <div class="seg" id="diff-seg">
-          <button data-diff="easy">简单</button>
-          <button data-diff="normal" class="on">普通</button>
-          <button data-diff="hard">困难</button>
-        </div>
-      </div>
-      <button id="btn-start" class="primary">开始对局</button>
-      <button id="btn-online" class="ghost">🌐 线上联机</button>
+  <section id="menu" class="home-layout panel">
+    <div class="hero">
+      <span class="eyebrow">双手之间，自有胜负</span>
+      <h1>一手算局，<br><em>一手出招。</em></h1>
+      <p class="hero-copy">相加变换手势，用费用释放技能。进攻、蓄势或反制，每一手都是你的选择。</p>
+      <div class="hero-hands" aria-hidden="true" data-hero-hands></div>
+      <div class="hero-facts"><span><b>双人博弈</b>联机 / 同屏 / 人机</span><span><b>0—9</b>十种技能手</span><span><b>20 / 21</b>先手 / 后手生命</span></div>
     </div>
-    <p class="hint" style="margin-top:14px">规则：先手 20 血 / 后手 21 血，能量→费用，详见「规则手册」</p>
+    <div class="play-panel"><span class="eyebrow">就位，开始下一局</span><h2>选择你的对手</h2><p class="sub">随时开局，本地模式无需联网。</p>
+    <div class="menu-opt"><div class="seg" id="mode-seg" aria-label="对战模式">
+      <button data-mode="pve" class="on" aria-pressed="true">人机对战<small>挑战电脑</small></button>
+      <button data-mode="pvp" aria-pressed="false">本地双人<small>同屏轮流</small></button>
+      <button data-mode="ai" aria-pressed="false">AI 观战<small>观察博弈</small></button>
+    </div><div id="diff-row"><span>AI 难度</span><div class="seg" id="diff-seg">
+      <button data-diff="easy" aria-pressed="false">简单</button><button data-diff="normal" class="on" aria-pressed="true">普通</button><button data-diff="hard" aria-pressed="false">困难</button>
+    </div><p class="difficulty-note" id="difficulty-note">会权衡攻守并预判后续行动，适合熟悉规则后挑战。</p></div>
+    <button id="btn-start" class="primary">开始对局 →</button><button id="btn-online" class="ghost">邀请朋友 · 线上联机</button></div><details class="quick-rules"><summary>第一次玩？三步开始</summary><p>① 双方各禁用一个技能。<br>② 用你的技能手，加上对方费用手的个位或技能手，结果取个位。<br>③ 选择对应技能并支付费用，也可以空过。将对手生命降至 0 获胜；小心假人复活和反弹。</p></details></div>
   </section>
 
   <!-- 盲ban -->
   <section id="ban" class="panel hidden">
-    <h2>🔒 禁用阶段（盲ban）</h2>
+    <h2>开局禁用</h2>
     <p class="sub" id="ban-sub">双方同时各禁用一个技能；选同一个也行；都选完后公示。</p>
+    <div id="ban-tools"></div>
     <div id="ban-grid" class="ban-grid"></div>
   </section>
 
@@ -65,9 +53,10 @@
     </div>
     <div class="game-right">
       <div class="log-panel">
-        <div class="log-head"><span>📜 对局记录</span><span id="log-count" class="log-count">0 条</span></div>
+        <div class="log-head"><span>对局记录</span><span id="log-count" class="log-count">0 条</span></div>
         <div id="log" class="log"></div>
       </div>
+      <button id="log-jump" class="log-jump hidden">↓ 最新</button>
     </div>
   </section>
 </main>
@@ -77,10 +66,11 @@
     <h2 id="result-title"></h2>
     <div id="result-sub" class="sub"></div>
     <button id="btn-again" class="primary">🔁 再来一局</button>
-    <button id="btn-menu" class="ghost">🏠 返回菜单</button>
+    <button id="btn-menu" class="ghost">返回菜单</button>
   </div>
 </div>
 
+<div id="rules-modal" class="modal hidden"><div class="modal-box wide"><div class="modal-head"><h2>规则手册</h2><button id="btn-rules-close" class="ghost" aria-label="关闭规则">关闭</button></div><iframe src="rules.html" title="规则手册"></iframe></div></div>
 <div id="toast" class="toast hidden"></div>
 <div id="ai-thinking" class="ai-thinking hidden">🤖 AI 思考中<span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
 
@@ -88,6 +78,7 @@
 <script src="../engine.js"></script>
 <script src="../ai.js"></script>
 <script src="ui.js"></script>
+<script src="battle-fx.js"></script>
 <script src="local.js"></script>
 </body>
 </html>

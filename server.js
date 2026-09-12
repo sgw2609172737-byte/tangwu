@@ -210,8 +210,10 @@ function handleState(req, res, u) {
 
 function serveStatic(req, res, urlPath) {
   let p = urlPath === '/' ? '/index.html' : urlPath;
-  const file = path.normalize(path.join(PUBLIC_DIR, decodeURIComponent(p)));
-  if (!file.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }
+  // 本地对战页及 AI Worker 与服务端使用同一套规则代码。
+  const shared = ['/engine.js', '/skills.js', '/ai.js'].includes(p);
+  const file = shared ? path.join(__dirname, p.slice(1)) : path.normalize(path.join(PUBLIC_DIR, decodeURIComponent(p)));
+  if (!shared && !file.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
     if (err) { res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); return res.end('404 Not Found'); }
     res.writeHead(200, { 'Content-Type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' });

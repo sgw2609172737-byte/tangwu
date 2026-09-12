@@ -4,7 +4,9 @@
   "description": "《唐五》双人联机对战游戏（零依赖）",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node test/engine.test.js && node test/ai-tactics.test.js && node test/visual-events.test.js && node test/e2e.js && node test/vercel.test.js",
+    "test:ai": "node test/ai.test.js"
   },
   "engines": {
     "node": ">=18"

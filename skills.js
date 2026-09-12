@@ -16,11 +16,15 @@ const fDiv = (a, b) => (b.n === 0 ? null : frac(a.n * b.d, a.d * b.n));
 
 // 24点求解：4个数字各用一次，仅加减乘除（可用括号），有理数精确运算
 // 优化：对 (i,j) 只枚举一次（sub/div 双向），结果去重，排列去重
+const solve24Cache = new Map();
 function solve24(nums) {
-  const arr = nums.slice();
-  const seenPerm = new Set();
+  const cacheKey = nums.slice().sort((a, b) => a - b).join(',');
+  if (solve24Cache.has(cacheKey)) return solve24Cache.get(cacheKey);
+  const deadEnds = new Set();
   function dfs(list) {
     if (list.length === 1) return list[0].n === 24 && list[0].d === 1;
+    const stateKey = list.map((v) => v.n + '/' + v.d).sort().join(',');
+    if (deadEnds.has(stateKey)) return false;
     for (let i = 0; i < list.length; i++) {
       for (let j = i + 1; j < list.length; j++) {
         const rest = list.filter((_, k) => k !== i && k !== j);
@@ -36,23 +40,14 @@ function solve24(nums) {
         }
       }
     }
+    deadEnds.add(stateKey);
     return false;
   }
-  function perm(k) {
-    if (k === arr.length) {
-      const key = arr.join(',');
-      if (seenPerm.has(key)) return false;
-      seenPerm.add(key);
-      return dfs(arr.map((n) => frac(n)));
-    }
-    for (let i = k; i < arr.length; i++) {
-      [arr[k], arr[i]] = [arr[i], arr[k]];
-      if (perm(k + 1)) return true;
-      [arr[k], arr[i]] = [arr[i], arr[k]];
-    }
-    return false;
-  }
-  return perm(0);
+  // 两两组合已穷举所有顺序及括号，不必再对输入排列重复搜索。
+  const solved = dfs(nums.map((n) => frac(n)));
+  if (solve24Cache.size >= 4096) solve24Cache.clear();
+  solve24Cache.set(cacheKey, solved);
+  return solved;
 }
 
 // 玩家当前拥有的"正面buff"（可被【公平正义】去除）

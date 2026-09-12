@@ -22,9 +22,9 @@ function toast(msg) {
 }
 
 // ---------- 菜单 ----------
-function setOn(sel, btn) { $(sel).querySelectorAll('button').forEach((b) => b.classList.toggle('on', b === btn)); }
-$('#mode-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => { setOn('#mode-seg', b); cfg.mode = b.dataset.mode; $('#diff-row').style.display = (cfg.mode === 'pve' ? 'flex' : 'none'); }; });
-$('#diff-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => { setOn('#diff-seg', b); cfg.diff = b.dataset.diff; }; });
+function setOn(sel, btn) { $(sel).querySelectorAll('button').forEach((b) => { b.classList.toggle('on', b === btn); b.setAttribute('aria-pressed', String(b === btn)); }); }
+$('#mode-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => { setOn('#mode-seg', b); cfg.mode = b.dataset.mode; $('#diff-row').style.display = (cfg.mode !== 'pvp' ? 'flex' : 'none'); }; });
+$('#diff-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => { setOn('#diff-seg', b); cfg.diff = b.dataset.diff; $('#difficulty-note').textContent = { easy: '以基础决策为主，适合第一次熟悉技能。', normal: '会权衡攻守并预判后续行动，适合熟悉规则后挑战。', hard: '更深入地推演连招、控制与反制，留意你的斩杀线。' }[cfg.diff]; }; });
 $('#btn-start').onclick = startGameLocal;
 $('#btn-back').onclick = backToMenu;
 $('#btn-menu').onclick = () => { $('#result-modal').classList.add('hidden'); backToMenu(); };
@@ -38,7 +38,8 @@ if (ONLINE_URL) {
 }
 
 function backToMenu() {
-  clearTimeout(aiTimer);
+  TW_FX.reset();
+  cancelAI();
   G = null;
   $('#game').classList.add('hidden');
   $('#ban').classList.add('hidden');
@@ -54,6 +55,11 @@ function names() {
 function actorOf(g) { return g.controller >= 0 ? g.controller : g.turn; }
 
 function startGameLocal() {
+  TW_FX.reset();
+  cancelAI();
+  _lastLogLen = 0;
+  localBanQuery = ''; localBanCost = -1;
+  $('#ban-tools').innerHTML = '';
   $('#menu').classList.add('hidden');
   $('#btn-back').classList.remove('hidden');
   G = TW.createGame(names());
@@ -66,6 +72,7 @@ function startGameLocal() {
 
 // 盲ban 界面
 function renderBan() {
+  setupLocalBanTools();
   const grid = $('#ban-grid');
   const sub = $('#ban-sub');
   const skillList = () => Object.keys(SK.SKILLS).flatMap((d) => SK.SKILLS[d].map((s) => ({ ...s, digit: d })));
@@ -93,12 +100,12 @@ function renderBan() {
     const picker = G.banPicks[0] ? 1 : 0;
     if (G.banPicks[0] && G.banPicks[1]) { afterBan(); return; }
     sub.textContent = `🔒 盲ban：玩家${picker + 1} 从全部技能里选 1 个禁用（选完才公示）。`;
-    const list = skillList();
+    const list = filterLocalBans(skillList());
     grid.innerHTML = list.map((s) => `<button class="ban-skill" data-ban="${s.id}" title="${esc(s.desc)}"><span class="ban-cost">${s.digit}$</span><span class="ban-name">${esc(s.name)}</span><span class="ban-desc">${esc(s.desc)}</span></button>`).join('');
     grid.querySelectorAll('[data-ban]').forEach((b) => { b.onclick = () => { TW.submitBan(G, picker, b.dataset.ban); renderBan(); }; });
     return;
   }
-  const list = skillList();
+  const list = filterLocalBans(skillList());
   grid.innerHTML = list.map((s) => `<button class="ban-skill" data-ban="${s.id}" title="${esc(s.desc)}"><span class="ban-cost">${s.digit}$</span><span class="ban-name">${esc(s.name)}</span><span class="ban-desc">${esc(s.desc)}</span></button>`).join('');
   grid.querySelectorAll('[data-ban]').forEach((b) => { b.onclick = () => { TW.submitBan(G, 0, b.dataset.ban); renderBan(); }; });
 }
@@ -139,7 +146,7 @@ function buffChips(p) {
 // 血量飘字 + 受伤闪光（跨渲染跟踪上一帧血量）
 const _prevHp = [-1, -1];
 function renderCard(el, p, idx) {
-  const active = !G.over && actorOf(G) === idx;
+  const active = !G.over && G.turn === idx;
   el.classList.toggle('active', active);
   const hpDiff = (_prevHp[idx] < 0) ? 0 : (p.hp - _prevHp[idx]);
   _prevHp[idx] = p.hp;
@@ -151,7 +158,7 @@ function renderCard(el, p, idx) {
     TW_SFX.heal();
   }
   const dmgNum = hpDiff !== 0 ? `<span class="dmg-num${hpDiff > 0 ? ' heal' : ''}">${hpDiff > 0 ? '+' : ''}${hpDiff}</span>` : '';
-  const hpPct = Math.max(0, Math.min(100, (p.hp / 30) * 100));
+  const hpPct = Math.max(0, Math.min(100, (p.hp / Math.max(21, p.hp)) * 100));
   const hpCls = p.hp > 15 ? 'good' : (p.hp > 7 ? 'mid' : 'low');
   const ctrlMark = G.controller === idx ? ' 🧠' : '';
   el.innerHTML = `
@@ -191,6 +198,7 @@ function render() {
   renderLog();
   renderControls();
   renderResult();
+  TW_FX.sync(G, [$('#p0-card'), $('#p1-card')], SK.SKILLS);
 }
 
 // AI 思考提示（先画出来，再让出事件循环给浏览器渲染，最后才开始计算）
@@ -199,6 +207,7 @@ function hideThinking() { const el = $('#ai-thinking'); if (el) el.classList.add
 
 function renderLog() {
   const el = $('#log');
+  const stick = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
   const items = G.log.slice(-80); // 只显示最近 80 条
   const cnt = document.querySelector('#log-count');
   if (cnt) cnt.textContent = items.length + ' 条';
@@ -211,7 +220,8 @@ function renderLog() {
     if (i === items.length - 1) cls += ' latest'; // 最新一条高亮
     return `<div class="log-line ${cls}">${esc(t)}</div>`;
   }).join('');
-  el.scrollTop = el.scrollHeight;
+  if (stick) el.scrollTop = el.scrollHeight;
+  else $('#log-jump').classList.remove('hidden');
 }
 
 function renderControls() {
@@ -219,7 +229,7 @@ function renderControls() {
   if (G.over) { el.innerHTML = ''; return; }
   const turnP = G.players[G.turn];
   const oppP = G.players[1 - G.turn];
-  const humanDecides = (cfg.mode === 'pvp') || actorOf(G) === 0; // 人机：你是0号，AI是1号
+  const humanDecides = (cfg.mode === 'pvp') || (cfg.mode === 'pve' && actorOf(G) === 0); // 人机：你是0号，AI是1号
   if (!humanDecides) {
     let msg = (cfg.mode === 'ai') ? '🤖 AI 对战中…' : '🤖 AI 思考中…';
     if (cfg.mode === 'pve' && G.turn === 0 && G.controller >= 0) msg = '你的回合被 AI 控制中…';
@@ -228,12 +238,7 @@ function renderControls() {
   }
   const ctrlNote = (cfg.mode === 'pve' && G.controller === 0) ? `🧠 你在控制 ${turnP.name} 的回合：` : '';
   if (G.step === 'awaitAdd') {
-    el.innerHTML = `
-      <div class="prompt">${ctrlNote}👉 技能手与对方一只手相加（取个位），选一个数字：</div>
-      <div class="add-btns">
-        <button class="add-num" data-add="0">${oppP.energy % 10}</button>
-        <button class="add-num" data-add="1">${oppP.skill}</button>
-      </div>`;
+    el.innerHTML = `<div class="prompt">${ctrlNote}选择相加的手，预览下一步可用技能。</div>` + addChoicesHTML(turnP, oppP, SK.SKILLS, G.banned);
     el.querySelectorAll('[data-add]').forEach((b) => { b.onclick = () => doAction({ type: 'add', choice: Number(b.dataset.add) }); });
     return;
   }
@@ -243,9 +248,10 @@ function renderControls() {
   const skills = SK.SKILLS[digit] || [];
   let html = `<div class="prompt">${ctrlNote}技能手 = <b>${digit}</b>，费用 <b>${digit}$</b>（当前 ${turnP.energy}$）${locked ? ' <b style="color:#ff5d73">⚠ 连续出技能已达24次，只能空过</b>' : ''}${G.chainCount >= 3 ? `，数字连携 <b>${G.chainCount}</b> 次！` : ''}</div>`;
   html += '<div class="skill-grid">';
+  let visibleSkill = 0;
   skills.forEach((sk, i) => {
     if (G.banned && G.banned.indexOf(sk.id) >= 0) return; // 被禁技能不显示
-    html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`);
+    html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`, ++visibleSkill);
   });
   html += '</div><button id="btn-pass" class="pass-btn">空过（结束回合）</button>';
   el.innerHTML = html;
@@ -265,7 +271,7 @@ function clickSkill(skillIdx) {
     overlay.className = 'modal';
     overlay.innerHTML = `
       <div class="modal-box">
-        <h2>优先去除对方哪个正面buff？（共去除2层）</h2>
+        <h2>优先去除对方哪个正面buff？（按本回合效果去除1–2层）</h2>
         <form id="buffform">
           ${list.map((b, i) => `<label class="buff-choice"><input type="radio" name="buffpick" value="${i}" ${i === 0 ? 'checked' : ''}> ${esc(b.name)}</label>`).join('')}
           <div class="btn-row"><button type="submit" class="primary">确认</button><button type="button" id="buffcancel">取消</button></div>
@@ -285,7 +291,7 @@ function clickSkill(skillIdx) {
 }
 
 function doAction(a) {
-  if (G.over) return;
+  if (!G || G.over) return;
   if (window.TW_SFX) TW_SFX.click();
   let r;
   if (a.type === 'add') r = TW.addHand(G, a.choice);
@@ -296,21 +302,44 @@ function doAction(a) {
   scheduleAI();
 }
 
-function scheduleAI() {
+const workerURL = new URL('ai-worker.js', document.currentScript.src);
+let aiWorker = null, aiGeneration = 0;
+function cancelAI() {
+  aiGeneration++;
   clearTimeout(aiTimer);
-  if (G.over) return;
-  const needAI = (cfg.mode === 'ai') || (cfg.mode === 'pve' && actorOf(G) === 1);
+  if (aiWorker) { aiWorker.terminate(); aiWorker = null; }
+  hideThinking();
+}
+function scheduleAI() {
+  cancelAI();
+  if (!G || G.over) return;
+  const needAI = cfg.mode === 'ai' || (cfg.mode === 'pve' && actorOf(G) === 1);
   if (!needAI) return;
-  showThinking(); // 先画出来，让浏览器渲染；计算前再让出一次事件循环
+  const generation = aiGeneration, game = G;
+  showThinking();
   aiTimer = setTimeout(() => {
-    if (G.over) { hideThinking(); return; }
-    setTimeout(() => {
-      if (G.over) { hideThinking(); return; }
-      const a = AI.chooseAction(G, actorOf(G), cfg.diff);
+    if (generation !== aiGeneration || G !== game || G.over) return;
+    const finish = (action) => {
+      if (generation !== aiGeneration || G !== game || G.over) return;
       hideThinking();
-      if (a) doAction(a); else render();
-    }, 30);
-  }, 400);
+      if (action) doAction(action); else render();
+    };
+    const fallback = () => {
+      if (generation !== aiGeneration || G !== game || G.over) return;
+      if (aiWorker) { aiWorker.terminate(); aiWorker = null; }
+      // file:// 环境可能禁用 Worker；小预算兜底，仍可离线双击运行。
+      finish(AI.chooseAction(G, actorOf(G), cfg.diff, 60));
+    };
+    try {
+      aiWorker = new Worker(workerURL);
+      aiWorker.onmessage = ({ data }) => {
+        if (generation !== aiGeneration) return;
+        if (data.error) fallback(); else finish(data.action);
+      };
+      aiWorker.onerror = (event) => { event.preventDefault(); fallback(); };
+      aiWorker.postMessage({ game: TW.serializeGame(G), actor: actorOf(G), difficulty: cfg.diff, budget: cfg.diff === 'hard' ? 700 : 100 });
+    } catch (e) { fallback(); }
+  }, 320);
 }
 
 function renderResult() {
@@ -318,5 +347,37 @@ function renderResult() {
   modal.classList.toggle('hidden', !G.over);
   if (!G.over) return;
   $('#result-title').textContent = G.result === 'draw' ? '🤝 平局！' : `🎉 ${G.players[G.winner].name} 获胜！`;
-  $('#result-sub').textContent = G.result === 'draw' ? '双方同时倒下' : '';
+  $('#result-sub').textContent = G.result === 'draw' ? '本局平局' : '';
 }
+
+let localBanQuery = '', localBanCost = -1;
+function filterLocalBans(list) {
+  const filtered = list.filter((s) => (localBanCost < 0 || Number(s.digit) === localBanCost) && (s.name + s.desc).includes(localBanQuery));
+  // 无结果提示在下一帧补充，保留筛选框焦点。
+  if (!filtered.length) queueMicrotask(() => { if (!$('#ban-grid').children.length) $('#ban-grid').innerHTML = '<p class="empty-state">没有匹配技能，请更换关键词或费用。</p>'; });
+  return filtered;
+}
+function setupLocalBanTools() {
+  const tools = $('#ban-tools');
+  if (tools.children.length || cfg.mode === 'ai') return;
+  tools.innerHTML = `<div class="ban-tools"><input id="ban-search" aria-label="搜索禁用技能" placeholder="搜索技能或效果"><div class="ban-chips"><button class="chip on" data-cost="-1">全部</button>${Array.from({ length: 10 }, (_, i) => `<button class="chip" data-cost="${i}">${i}$</button>`).join('')}</div></div>`;
+  $('#ban-search').oninput = (e) => { localBanQuery = e.target.value.trim(); renderBan(); };
+  tools.querySelectorAll('[data-cost]').forEach((button) => {
+    button.onclick = () => { localBanCost = Number(button.dataset.cost); tools.querySelectorAll('[data-cost]').forEach((b) => b.classList.toggle('on', b === button)); renderBan(); };
+  });
+}
+$('#btn-rules').onclick = () => $('#rules-modal').classList.remove('hidden');
+$('#btn-rules-close').onclick = () => $('#rules-modal').classList.add('hidden');
+$('#rules-modal').onclick = (e) => { if (e.target === $('#rules-modal')) $('#rules-modal').classList.add('hidden'); };
+$('#log-jump').onclick = () => { $('#log').scrollTop = $('#log').scrollHeight; $('#log-jump').classList.add('hidden'); };
+$('#log').addEventListener('scroll', () => { const el = $('#log'); if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) $('#log-jump').classList.add('hidden'); }, { passive: true });
+document.addEventListener('keydown', (e) => {
+  if (e.ctrlKey || e.altKey || e.metaKey || e.repeat || !G || G.over) return;
+  if (document.querySelector('.modal:not(.hidden)') || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+  if (cfg.mode === 'ai' || (cfg.mode === 'pve' && actorOf(G) !== 0)) return;
+  let button;
+  if (G.step === 'awaitAdd' && /^[12]$/.test(e.key)) button = $('#controls').querySelectorAll('[data-add]')[Number(e.key) - 1];
+  else if (G.step === 'awaitAction' && /^[1-9]$/.test(e.key)) button = $('#controls').querySelectorAll('[data-skill]')[Number(e.key) - 1];
+  else if (G.step === 'awaitAction' && e.key.toLowerCase() === 'p') button = $('#btn-pass');
+  if (button && !button.disabled) { e.preventDefault(); button.click(); }
+});
