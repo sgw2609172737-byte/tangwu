@@ -12,6 +12,22 @@ function position(digit, hp = 20, opponentHp = 20) {
 }
 function apply(g, a) { return a.type === 'act' ? E.actSkill(g, a.skillIdx, { buffIdx: a.buffIdx }) : a.type === 'add' ? E.addHand(g, a.choice) : E.passTurn(g); }
 const tests = {
+  '安全局面选择圣水建立经济，而非只看即时伤害'() {
+    const g=position(7,30,30); const a=AI.chooseAction(g,0,'hard',120);
+    assert.equal(SK.SKILLS[7][a.skillIdx].id,'shuangbei');
+  },
+  '高血量选择长期呼吸，残血仍选择急救'() {
+    for (const hp of [30,3]) { const g=position(8,hp,30);g.banned=['ba','duming'];const a=AI.chooseAction(g,0,'hard',120);assert.equal(SK.SKILLS[8][a.skillIdx].id,hp===30?'huxi':'jijiu'); }
+  },
+  '主动反制对方叠加经济'() {
+    const g=position(7,30,30);g.players[1].shuangbei=3;g.players[0].jumped7=true;
+    const a=AI.chooseAction(g,0,'hard',120);assert.equal(SK.SKILLS[7][a.skillIdx].id,'gongping');
+  },
+  '安全的低资源局面愿意投资'() {
+    const g=position(5,30,30);g.players[0].energy=5;
+    const a=AI.chooseAction(g,0,'hard',120);assert.equal(SK.SKILLS[5][a.skillIdx].id,'touzi');
+  },
+
   '控制对方时不替对方斩杀自己'() {
     const g = position(6, 20, 5); g.controller = 1;
     const a = AI.chooseAction(g, 1, 'hard', 80);

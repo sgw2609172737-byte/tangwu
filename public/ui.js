@@ -162,3 +162,13 @@ function addChoicesHTML(p, o, catalog, banned = []) {
   };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
+
+// 禁用结果常驻对局顶部，重复禁用去重；不能依赖会滚走的战报。
+function renderBanSummary(el, banned, catalog) {
+  if (!el) return;
+  const entries = Object.entries(catalog).flatMap(([digit, list]) => list.map((sk) => ({ ...sk, digit })));
+  const ids = [...new Set(banned || [])];
+  const skills = ids.map((id) => entries.find((sk) => sk.id === id)).filter(Boolean);
+  const html = `<div class="ban-summary-head"><strong>本局禁用 · ${skills.length} 个技能</strong><span>双方均不可使用</span></div><div class="ban-summary-list">${skills.map((sk) => `<article class="banned-detail"><div class="banned-art">${(SKILL_ART[sk.id] || SKILL_ART._def).svg}</div><div><div class="banned-name">${esc(sk.name)} <span>${sk.digit}$</span></div><p>${esc(sk.desc)}</p></div></article>`).join('') || '<p class="hint">本局没有禁用技能</p>'}</div>`;
+  if (el._summaryHTML !== html) { el.innerHTML = html; el._summaryHTML = html; }
+}

@@ -5,7 +5,7 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "test": "node test/engine.test.js && node test/ai-tactics.test.js && node test/visual-events.test.js && node test/e2e.js && node test/vercel.test.js",
+    "test": "node test/engine.test.js && node test/ai-tactics.test.js && node test/visual-events.test.js && node test/rules-revision.test.js && node test/e2e.js && node test/vercel.test.js",
     "test:ai": "node test/ai.test.js"
   },
   "engines": {

@@ -22,11 +22,25 @@ try:
         page.locator('#ban-search').fill('不存在的技能');assert page.locator('.empty-state').count()==1
         page.locator('#ban-search').fill('');page.locator('[data-ban]').first.click();page.locator('[data-ban]').nth(1).click()
         page.locator('#game').wait_for(state='visible'); assert page.locator('#game svg.hand').count()==4
+        assert page.locator('#ban-summary .banned-detail').count()==2
+        assert '双方均不可使用' in page.locator('#ban-summary').inner_text()
         assert page.locator('.add-choice').count()==2
         page.keyboard.press('1')
         page.screenshot(path=str(out/'ui-battle.png'),full_page=True)
         page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(out/'ui-mobile.png'),full_page=True)
         assert page.evaluate('document.documentElement.scrollWidth <= innerWidth')
+        page.evaluate("""() => {
+          G.banned=['jiubaK','jiubaK'];
+          const p=G.players[0];p.dummy={alive:true,hp:3,castBefore:true,reserve:[1,1]};
+          p.yingneng={active:true,charge:5};p.huxi=2;p.qianghua=true;
+          p.delayed=[{owner:1,dmg:2,desc:'小烈焰',noBonus:true}];render();
+        }""")
+        assert page.locator('#ban-summary .banned-detail').count()==1
+        assert '98K' in page.locator('#ban-summary').inner_text()
+        assert '3个' in page.locator('#p0-card [data-key=dummy]').inner_text()
+        assert '5/6' in page.locator('#p0-card [data-key=yingneng]').inner_text()
+        assert '+4血' in page.locator('#p0-card [data-key=huxi]').inner_text()
+        assert '回合结束-2血' in page.locator('#p0-card [data-key=delayed]').inner_text()
         page.locator('#btn-back').click();page.locator('[data-mode=ai]').click();page.locator('[data-diff=hard]').click()
         workers=[];page.on('worker',lambda w:workers.append(w))
         page.evaluate('window.uiTicks=0; window.tickTimer=setInterval(()=>window.uiTicks++,20)')
@@ -44,6 +58,8 @@ try:
         page.locator('[data-ban]').first.click();other.locator('[data-ban]').nth(1).click()
         page.locator('#game').wait_for(state='visible');other.locator('#game').wait_for(state='visible')
         assert page.locator('#game svg.hand').count()==4
+        assert page.locator('#ban-summary .banned-detail').count()==2
+        assert other.locator('#ban-summary').inner_text()==page.locator('#ban-summary').inner_text()
         active=page if page.locator('[data-add]').count() else other
         active.locator('[data-add]').first.click()
         page.locator('#btn-leave').click();page.locator('#lobby').wait_for(state='visible');assert page.locator('#ban').is_hidden()

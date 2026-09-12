@@ -34,17 +34,18 @@ function mkPlayer(name, hp) {
     energy: 2, skill: 1,
     jingji: false,                                   // 荆棘
     wudi: false,                                     // 无敌
-    yingneng: { active: false, idle: 0 },            // 盈能
+    yingneng: { active: false, charge: 0 },            // 盈能
     shuangbei: 0,                                    // 双倍圣水（层数，每回合额外+N$）
     huxi: 0,                                         // 呼吸回血（层数，每回合+ N血）
     qianghua: false,                                 // 强化（永久）
     bishi: false,                                    // 鄙视（永久被动）
     tanghua: false,                                  // 假人唐化（永久）
     cuidu: false,                                    // 淬毒（永久）
-    dummy: { alive: false, hp: 0, castBefore: false }, // 假人
+    dummy: { alive: false, hp: 0, castBefore: false, reserve: [] }, // 假人
     inDummyCombat: false,                            // 假人作战状态（灵魂已转移到假人）
     qibu: { stage: 0, owner: -1 },                   // 七步：0无 1每回合-3 2每回合-2
     duming: { active: false, turnsLeft: 0 },         // 赌命
+    dumingUsed: false,                              // 赌命每局只能释放一次
     dumingExtraUsed: false,                          // 赌命"瞬时伤害≥9"额外行动（整局限一次，不随再次赌命重置）
     freeze: 0,                                       // 冰封剩余回合
     huanwuSkip: false,                               // 幻雾：下回合跳过相加
@@ -109,14 +110,8 @@ function checkDeaths(g) {
 function dealDamage(g, source, target, amount, opts = {}) {
   if (g.over || amount <= 0) return false;
   const { ignoreWudi = false, ignoreJingji = false, bypassDummy = false, isDot = false, noBonus = false, note = '' } = opts;
-  // 增伤（盈能一次性、赌命每段+3）；延迟/持续伤害与反弹伤害不吃增伤
+  // 赌命每段+3；盈能由攻击技能入口消费；延迟/持续伤害与反弹不吃增伤
   if (!noBonus && source) {
-    if (source.yingneng.active && source.yingneng.idle > 0) {
-      const b = Math.min(source.yingneng.idle, 6);
-      amount += b;
-      source.yingneng.idle = 0;
-      log(g, `⚡ 盈能加成 +${b}（${source.name}）`);
-    }
     if (source.duming.active) amount += 3;
   }
   // 无敌（仅抵挡瞬时伤害，dot 不触发；98K 无视）
@@ -127,6 +122,8 @@ function dealDamage(g, source, target, amount, opts = {}) {
     log(g, `🛡 ${target.name} 的无敌抵挡了攻击，+2血`);
     return false;
   }
+  const outermost = !g.resolvingDamage;
+  g.resolvingDamage = true;
   target.hp -= amount;
   g.damagedThisTurn = true;
   log(g, `${note ? '[' + note + '] ' : ''}${target.name} 受到 ${amount} 点伤害（HP ${target.hp}）`);
@@ -154,13 +151,15 @@ function dealDamage(g, source, target, amount, opts = {}) {
   // 假人复活（98K、赌命倒计时无视）
   if (target.hp <= 0 && target.dummy.alive && !bypassDummy) {
     const dhp = target.dummy.hp;
-    target.dummy.alive = false;
-    target.dummy.hp = 0;
+    const reserve = target.dummy.reserve || [];
+    target.dummy.alive = reserve.length > 0;
+    target.dummy.hp = reserve.length ? reserve[0] : 0;
+    target.dummy.reserve = reserve.slice(1);
     target.inDummyCombat = true;
     target.hp = dhp;
-    log(g, `🤖 ${target.name} 的假人替他挡下致命一击！复活后 HP ${target.hp}`);
+    log(g, `🤖 ${target.name} 的假人替他挡下致命一击！复活后 HP ${target.hp}，剩余${target.dummy.alive ? 1 + target.dummy.reserve.length : 0}个假人`);
   }
-  checkDeaths(g);
+  if (outermost) { delete g.resolvingDamage; checkDeaths(g); }
   return true;
 }
 
@@ -194,16 +193,7 @@ function startTurn(g) {
   // 正常回合开始
   gain(g, p, 1);
   if (p.shuangbei) { gain(g, p, p.shuangbei); log(g, `💧 双倍圣水：${p.name} 额外+${p.shuangbei}$`); }
-  if (p.huxi) { heal(g, p, p.huxi); log(g, `💚 呼吸回血：${p.name} +${p.huxi}血`); }
-  // 延迟伤害触发：对方身上、由我造成的延迟伤害（小烈焰/淬毒），在我的回合开始时自动结算
-  const pend = o.delayed.filter((d) => d.owner === idx(g, p));
-  if (pend.length) {
-    o.delayed = o.delayed.filter((d) => d.owner !== idx(g, p));
-    for (const d of pend) {
-      dealDamage(g, p, o, d.dmg, { isDot: true, noBonus: !!d.noBonus, note: d.desc });
-      if (g.over) return;
-    }
-  }
+  if (p.huxi) { const recovery = p.huxi * (p.qianghua ? 2 : 1); heal(g, p, recovery); log(g, `💚 呼吸回血：${p.name} +${recovery}血${p.qianghua ? '（强化每层额外+1）' : ''}`); }
   // 幻雾：跳过相加
   if (p.huanwuSkip) {
     p.huanwuSkip = false;
@@ -217,6 +207,13 @@ function startTurn(g) {
 function endTurn(g) {
   if (g.over) return;
   const p = cur(g), o = opp(g);
+  // 受伤方的回合结束时逐条结算；再次行动不是回合结束，冰封回合也会结算。
+  const delayed = p.delayed;
+  p.delayed = [];
+  for (const d of delayed) {
+    dealDamage(g, g.players[d.owner] || o, p, d.dmg, { isDot: true, noBonus: true, note: d.desc });
+    if (g.over) return;
+  }
   // 七步：回合结束时扣血（不触发无敌、不受增伤）
   if (p.qibu.stage > 0) {
     const d = p.qibu.stage === 1 ? 3 : 2;
@@ -235,10 +232,6 @@ function endTurn(g) {
     } else {
       log(g, `🗡 嘲讽未触发（对方造成${n}点伤害）`);
     }
-  }
-  // 盈能：本回合未攻击则计数+1（上限6）
-  if (p.yingneng.active && !p.dealtThisTurn) {
-    p.yingneng.idle = Math.min(6, p.yingneng.idle + 1);
   }
   // 赌命倒计时（赌命者自己的回合结束时-1，含释放当回合；归零直接败北，无视假人）
   if (p.duming.active) {
@@ -329,21 +322,34 @@ function actSkill(g, skillIdx, opts = {}) {
   if (g.banned && g.banned.indexOf(sk.id) >= 0) return { err: '该技能已被禁用' };
   if (p.streak >= 24) return { err: '连续出技能已达24次，只能空过' };
   if (p.energy < p.skill) return { err: '费用不足' };
+  if (sk.id === 'duming' && (p.dumingUsed || p.duming.active)) return { err: '赌命每局只能使用一次' };
+  const handDigits = [p.energy % 10, p.skill, o.energy % 10, o.skill];
   p.energy -= p.skill;
   g.actionsUsed++;
   p.streak++; o.streak = 0; // 连出技能计数：自己+1，对方归零（解锁对方）
   log(g, `🎯 ${p.name} 释放了【${sk.name}】（消耗 ${p.skill}$）`);
+  // 盈能由下一次攻击消耗；不为七步、反弹或延迟伤害加成。
+  let attackCharge = sk.isAttack && p.yingneng.active ? (p.yingneng.charge ?? p.yingneng.idle ?? 0) : 0;
+  if (attackCharge > 0) {
+    p.yingneng.charge = 0;
+    log(g, `⚡ 盈能：${p.name} 消耗${attackCharge}层充能强化攻击`);
+  }
   const ctx = {
-    g, p, o, pIdx: idx(g, p), skill: sk, opts: opts || {},
+    handDigits, g, p, o, pIdx: idx(g, p), skill: sk, opts: opts || {},
     log: (m) => log(g, m),
+    visual: (event) => visualEvent(g, event),
     gain: (n) => gain(g, p, n),
     healSelf: (n) => heal(g, p, n),
-    dmg: (t, amt, o2 = {}) => dealDamage(g, p, t, amt, o2),
+    dmg: (t, amt, o2 = {}) => { const bonus = !o2.isDot && !o2.noBonus ? attackCharge : 0; if (bonus) attackCharge = 0; return dealDamage(g, p, t, amt + bonus, o2); },
     kill: (sk.id === 'jiubaK' && g.chainCount >= 3 && g.chainDigits.size >= 2),
   };
   visualEvent(g, { kind: 'cast', source: idx(g, p), skillId: sk.id, combo: !!ctx.kill });
   sk.run(ctx);
   if (g.over) return { ok: true };
+  if (p.yingneng.active && !sk.isAttack && sk.id !== 'yingneng') {
+    p.yingneng.charge = Math.min(6, (p.yingneng.charge ?? p.yingneng.idle ?? 0) + 1);
+    log(g, `⚡ 盈能：非攻击技能蓄能，当前${p.yingneng.charge}/6层`);
+  }
   // 赌命：使用攻击技能后 +1 费用
   if (p.duming.active && sk.isAttack) {
     gain(g, p, 1);
@@ -352,7 +358,7 @@ function actSkill(g, skillIdx, opts = {}) {
   // 淬毒：攻击技能给目标附加"下回合1毒伤"（每放一次攻击技能挂一层）
   if (p.cuidu && sk.isAttack) {
     o.delayed.push({ owner: idx(g, p), dmg: 1, desc: '淬毒', noBonus: true });
-    log(g, `🕷 淬毒：${o.name} 下回合将额外受到1点毒伤`);
+    log(g, `🕷 淬毒：${o.name} 自己回合结束时将额外受到1点毒伤`);
   }
   // 98K 数字连携链更新（数字技能入链，其他技能断链）
   if (sk.isDigit) { g.chainCount++; g.chainDigits.add(sk.id); }
@@ -384,14 +390,14 @@ function buffList(p) {
   const out = [];
   if (p.jingji) out.push({ key: 'jingji', name: '荆棘', detail: '反弹一次伤害' });
   if (p.wudi) out.push({ key: 'wudi', name: '无敌', detail: '抵挡一次攻击+2血' });
-  if (p.yingneng.active) out.push({ key: 'yingneng', name: '盈能', detail: `闲置${p.yingneng.idle}回合` });
+  if (p.yingneng.active) out.push({ key: 'yingneng', name: '盈能', detail: `充能${p.yingneng.charge ?? p.yingneng.idle ?? 0}/6 · 下次攻击增伤` });
   if (p.shuangbei) out.push({ key: 'shuangbei', name: '双倍圣水', detail: `每回合额外+${p.shuangbei}$` });
-  if (p.huxi) out.push({ key: 'huxi', name: '呼吸回血', detail: `每回合+${p.huxi}血` });
-  if (p.qianghua) out.push({ key: 'qianghua', name: '强化', detail: '*技能加血+2' });
+  if (p.huxi) out.push({ key: 'huxi', name: '呼吸回血', detail: `每回合+${p.huxi * (p.qianghua ? 2 : 1)}血${p.qianghua ? '（强化）' : ''}` });
+  if (p.qianghua) out.push({ key: 'qianghua', name: '强化', detail: '★技能加血+2；呼吸每层额外+1' });
   if (p.bishi) out.push({ key: 'bishi', name: '鄙视', detail: '被动偷费用' });
   if (p.tanghua) out.push({ key: 'tanghua', name: '假人唐化', detail: '假人可无限召唤' });
   if (p.cuidu) out.push({ key: 'cuidu', name: '淬毒', detail: '攻击附带1毒伤' });
-  if (p.dummy.alive) out.push({ key: 'dummy', name: '假人', detail: `${p.dummy.hp}血` });
+  if (p.dummy.alive) out.push({ key: 'dummy', name: '假人', detail: `${1 + (p.dummy.reserve || []).length}个 · 队首${p.dummy.hp}血` });
   if (p.inDummyCombat) out.push({ key: 'dummyC', name: '假人作战', detail: '灵魂在假人中' });
   if (p.qibu.stage === 1) out.push({ key: 'qibu', name: '七步', detail: '每回合结束-3' });
   if (p.qibu.stage === 2) out.push({ key: 'qibu', name: '七步', detail: '每回合结束-2' });
@@ -399,7 +405,7 @@ function buffList(p) {
   if (p.freeze > 0) out.push({ key: 'freeze', name: '冰封', detail: `${p.freeze}回合` });
   if (p.chaofeng.pending) out.push({ key: 'chaofeng', name: '嘲讽', detail: '待触发' });
   if (p.huanwuSkip) out.push({ key: 'huanwu', name: '幻雾', detail: '下回合跳过相加' });
-  if (p.delayed.length) out.push({ key: 'delayed', name: '延迟伤害', detail: p.delayed.map((d) => d.desc).join('+') });
+  if (p.delayed.length) out.push({ key: 'delayed', name: '延迟伤害', detail: `自己回合结束-${p.delayed.reduce((sum,d) => sum+d.dmg,0)}血 · ${p.delayed.map((d) => d.desc).join('+')}` });
   return out;
 }
 
@@ -425,6 +431,7 @@ function publicState(g, youIdx) {
     players: g.players.map((p) => ({
       name: p.name, hp: p.hp, energy: p.energy, skill: p.skill, shownE: p.energy % 10,
       streak: p.streak || 0,
+      dumingUsed: !!(p.dumingUsed || p.duming.active),
       buffs: buffList(p),
       positiveBuffs: __positiveBuffs(p).map((b) => ({ key: b.key, name: b.name })),
     })),
@@ -442,6 +449,12 @@ function serializeGame(g) {
 function deserializeGame(json) {
   const g = JSON.parse(json);
   g.chainDigits = new Set(Array.isArray(g.chainDigits) ? g.chainDigits : []);
+  for (const p of g.players) {
+    p.dummy.reserve = Array.isArray(p.dummy.reserve) ? p.dummy.reserve : [];
+    p.dumingUsed = !!(p.dumingUsed || p.duming.active);
+    p.yingneng.charge = p.yingneng.charge ?? p.yingneng.idle ?? 0;
+    delete p.yingneng.idle;
+  }
   return g;
 }
 

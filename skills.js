@@ -101,21 +101,21 @@ const SKILLS = {
       run(c) { c.p.chaofeng = { pending: true, dmg: 0 }; c.log('嘲讽已就绪'); } },
   ],
   '3': [
-    { id: 'xiaolieyan', name: '小烈焰', desc: '立即3伤；你下回合开始时再自动造成2伤（可被净化）', star: false, isAttack: true, isDigit: false,
+    { id: 'xiaolieyan', name: '小烈焰', desc: '立即3伤；对方回合结束时再造成2伤（可被净化）', star: false, isAttack: true, isDigit: false,
       run(c) { c.dmg(c.o, 3); c.o.delayed.push({ owner: c.pIdx, dmg: 2, desc: '小烈焰', noBonus: true }); } },
     { id: 'san', name: '三', desc: '数字技能：+2$，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
       run(c) { c.gain(2); } },
     { id: 'hanfeng', name: '寒风', desc: '3伤并使对方-1$', star: false, isAttack: true, isDigit: false,
       run(c) { if (c.dmg(c.o, 3)) { const e = c.o.energy; c.o.energy = Math.max(0, e - 1); c.log(`寒风：对方费用 ${e}$ → ${c.o.energy}$`); } } },
-    { id: 'tanghua', name: '假人唐化', desc: '永久：可无限次使用【假人】（同时最多1个）', star: false, isAttack: false, isDigit: false,
+    { id: 'tanghua', name: '假人唐化', desc: '永久：可无限次召唤假人，同时存在数量不限；按召唤顺序挡致命伤', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.tanghua = true; c.log('假人唐化生效：可无限召唤假人'); } },
   ],
   '4': [
     { id: 'xiaoxiaotou', name: '小小偷', desc: '对方-4$（最低0）并造成1伤', star: false, isAttack: true, isDigit: false,
       run(c) { const e = c.o.energy; if (c.dmg(c.o, 1)) { c.o.energy = Math.max(0, e - 4); c.log(`小小偷：对方费用 ${e}$ → ${c.o.energy}$`); } } },
-    { id: 'dian24', name: '24点', desc: '四手数字各用一次、加减乘除算出24 → +5血（强化+7）；算不出则空放', star: true, isAttack: false, isDigit: false,
+    { id: 'dian24', name: '24点', desc: '施放前四手数字各用一次、加减乘除算出24 → +5血（强化+7）；算不出则空放', star: true, isAttack: false, isDigit: false,
       run(c) {
-        const digs = [c.p.energy % 10, c.p.skill, c.o.energy % 10, c.o.skill];
+        const digs = c.handDigits;
         if (solve24(digs)) { const v = 5 + (c.p.qianghua ? 2 : 0); c.healSelf(v); c.log(`24点成功！${digs.join(' ')} 可算出24，+${v}血`); }
         else c.log(`24点失败，空放（${digs.join(' ')} 无法算出24）`);
       } },
@@ -123,7 +123,7 @@ const SKILLS = {
       run(c) { const n = c.p.cumulativeDmg; const t = Math.min(3, Math.floor(n / 5)); c.gain(2 * t); c.log(`以战养战：累计${n}伤 → +${2 * t}$`); } },
     { id: 'si', name: '四', desc: '数字技能：+3$，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
       run(c) { c.gain(3); } },
-    { id: 'cuidu', name: '淬毒', desc: '永久：你的攻击类技能附带下回合1伤（毒伤不受增伤加成，可被净化）', star: false, isAttack: false, isDigit: false,
+    { id: 'cuidu', name: '淬毒', desc: '永久：你的攻击类技能附带对方回合结束时1伤（毒伤不受增伤加成，可被净化）', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.cuidu = true; c.log('淬毒生效：攻击技能将附带延迟毒伤'); } },
   ],
   '5': [
@@ -135,14 +135,14 @@ const SKILLS = {
       run(c) { c.p.wudi = true; c.log('无敌已就绪'); } },
   ],
   '6': [
-    { id: 'yingneng', name: '盈能', desc: '+1$；此后你每n回合未攻击（n上限6），下次伤害+n（一次性）', star: false, isAttack: false, isDigit: false,
-      run(c) { c.gain(1); c.p.yingneng = { active: true, idle: 0 }; c.log('盈能生效'); } },
+    { id: 'yingneng', name: '盈能', desc: '+2$，获得至少3层充能；此后每释放非攻击技能蓄能+1（盈能自身除外，上限6）；下次攻击消耗全部充能增伤，可再次蓄能', star: false, isAttack: false, isDigit: false,
+      run(c) { c.gain(2); c.p.yingneng = { active: true, charge: Math.max(3, c.p.yingneng.charge ?? c.p.yingneng.idle ?? 0) }; c.log('盈能生效：非攻击技能蓄能，下次攻击释放'); } },
     { id: 'jiubaK', name: '98K', desc: '9伤；本回合若已连续使用≥3次数字技能（一/三/四/八）且至少2种 → 114514秒杀（无视无敌/荆棘/假人）', star: false, isAttack: true, isDigit: false,
       run(c) {
         if (c.kill) { c.log('💥 98K 连携成功！114514 点伤害，无视一切！'); c.dmg(c.o, 114514, { ignoreWudi: true, ignoreJingji: true, bypassDummy: true }); }
         else c.dmg(c.o, 9);
       } },
-    { id: 'qianghua', name: '强化', desc: '永久：所有带*技能的加血值+2', star: false, isAttack: false, isDigit: false,
+    { id: 'qianghua', name: '强化', desc: '永久：其他★技能加血值+2；呼吸回血每层每回合额外+1血', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.qianghua = true; c.log('强化生效（永久）'); } },
     { id: 'bing', name: '冰！', desc: '+2血；对方接下来2回合无法行动（只能+1$）', star: false, isAttack: false, isDigit: false,
       run(c) { c.healSelf(2); c.o.freeze = Math.max(c.o.freeze, 2); c.log(`冰！：${c.o.name} 被冰封2回合`); } },
@@ -174,12 +174,12 @@ const SKILLS = {
   '8': [
     { id: 'ba', name: '八', desc: '数字技能：+8$，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
       run(c) { c.gain(8); } },
-    { id: 'huxi', name: '呼吸回血', desc: '此后你每回合+1血（可叠加）', star: false, isAttack: false, isDigit: false,
-      run(c) { c.p.huxi = (c.p.huxi || 0) + 1; c.log(`呼吸回血生效（每回合+${c.p.huxi}血）`); } },
+    { id: 'huxi', name: '呼吸回血', desc: '此后你每回合+1血（可叠加）；强化后每层额外+1血', star: true, isAttack: false, isDigit: false,
+      run(c) { c.p.huxi = (c.p.huxi || 0) + 1; c.log(`呼吸回血生效（${c.p.huxi}层，每回合+${c.p.huxi * (c.p.qianghua ? 2 : 1)}血）`); } },
     { id: 'jijiu', name: '急救箱', desc: '回复10点生命（受强化影响：+12）', star: true, isAttack: false, isDigit: false,
       run(c) { c.healSelf(10 + (c.p.qianghua ? 2 : 0)); } },
-    { id: 'duming', name: '赌命！', desc: '+4$、+6血并再次行动；6个你的回合（含释放回合）内未分胜负 → 血量清零直接败北（无视假人）；期间：每段伤害+3、攻击技能后+1$、瞬时伤害≥9可再次行动（整局限一次）', star: false, isAttack: false, isDigit: false, grantsAgain: true,
-      run(c) { c.gain(4); c.healSelf(6); c.p.duming = { active: true, turnsLeft: 6 }; c.log(`赌命！${c.p.name} 进入赌命状态（6回合倒计时）`); } },
+    { id: 'duming', name: '赌命！', desc: '每局限用一次；+4$、+6血并再次行动；6个你的回合（含释放回合）内未分胜负 → 血量清零直接败北（无视假人）；期间：每段伤害+3、攻击技能后+1$、瞬时伤害≥9可再次行动（整局限一次）', star: false, isAttack: false, isDigit: false, grantsAgain: true,
+      run(c) { c.p.dumingUsed = true; c.gain(4); c.healSelf(6); c.p.duming = { active: true, turnsLeft: 6 }; c.log(`赌命！${c.p.name} 进入赌命状态（6回合倒计时）`); } },
   ],
   '9': [
     { id: 'youli', name: '尤里', desc: '+4$；你完全控制对方下个回合', star: false, isAttack: false, isDigit: false,
@@ -190,12 +190,13 @@ const SKILLS = {
       run(c) { const e = c.o.energy; if (c.dmg(c.o, 1)) { c.o.energy = 0; c.gain(Math.ceil(e / 3)); c.log(`极盗：偷走 ${e}$ 费用，你获得 ${Math.ceil(e / 3)}$`); } } },
     { id: 'bishi', name: '鄙视', desc: '永久被动：每回合对方行动前，若你技能手数字>对方，你+1$、对方-1$', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.bishi = true; c.log('鄙视生效（永久被动）'); } },
-    { id: 'shipo', name: '识破', desc: '+1血，+6$；对方本体与假人血量互换，再对互换后的本体造成1伤（无假人则互换无效）', star: false, isAttack: true, isDigit: false,
+    { id: 'shipo', name: '识破', desc: '+1血，+6$；清空对方所有备用假人，再造成1伤（无敌可抵挡清除与伤害）', star: false, isAttack: true, isDigit: false,
       run(c) {
         c.healSelf(1); c.gain(6);
-        if (c.o.wudi) { c.o.wudi = false; c.o.hp += 2; c.log('识破被无敌抵挡'); return; }
-        if (c.o.dummy.alive) { const t = c.o.hp; c.o.hp = c.o.dummy.hp; c.o.dummy.hp = t; c.log(`识破：互换血量（本体${c.o.hp}，假人${c.o.dummy.hp}）`); }
-        else c.log('识破：对方没有假人，互换无效');
+        if (c.o.wudi) { c.o.wudi = false; c.o.hp += 2; c.visual({ kind: 'shield-break', source: 1 - c.pIdx, skillId: 'wudi' }); c.log('识破被无敌抵挡'); return; }
+        const count = c.o.dummy.alive ? 1 + (c.o.dummy.reserve || []).length : 0;
+        c.o.dummy.alive = false; c.o.dummy.hp = 0; c.o.dummy.reserve = [];
+        c.log(`识破：清除了对方${count}个备用假人`);
         c.dmg(c.o, 1);
       } },
   ],
@@ -212,14 +213,15 @@ const SKILLS = {
         else if (nDelayed) c.log(`净化：解除了${nDelayed}层延迟伤害`);
         else c.log('净化：+1血');
       } },
-    { id: 'jiaren', name: '假人', desc: '获得1血假人（第二条命）；全局限1次（假人唐化可无限次，同时上限1）', star: false, isAttack: false, isDigit: false,
+    { id: 'jiaren', name: '假人', desc: '获得1血假人；每局限1次，唐化后可无限次召唤并同时存在，按顺序挡致命伤', star: false, isAttack: false, isDigit: false,
       run(c) {
-        if (c.p.dummy.alive) { c.log('假人：已有假人，无法再召唤'); return; }
+        if (c.p.dummy.alive && !c.p.tanghua) { c.log('假人：已有假人，无法再召唤'); return; }
         if (!c.p.tanghua && c.p.dummy.castBefore) { c.log('假人：本局已使用过（全局限1次）'); return; }
-        c.p.dummy = { alive: true, hp: 1, castBefore: true };
-        c.log('🤖 假人已召唤（1血）');
+        if (c.p.dummy.alive) c.p.dummy.reserve = [...(c.p.dummy.reserve || []), 1];
+        else c.p.dummy = { alive: true, hp: 1, castBefore: true, reserve: [] };
+        c.log(`🤖 假人已召唤（1血，现有${1 + (c.p.dummy.reserve || []).length}个）`);
       } },
-    { id: 'jiarenqh', name: '假人强化', desc: '假人+2血（假人作战状态下无法使用）', star: false, isAttack: false, isDigit: false,
+    { id: 'jiarenqh', name: '假人强化', desc: '队首假人+2血（假人作战状态下无法使用）', star: false, isAttack: false, isDigit: false,
       run(c) {
         if (!c.p.dummy.alive) { c.log('假人强化：没有假人'); return; }
         if (c.p.inDummyCombat) { c.log('假人强化：假人作战中，无法强化'); return; }

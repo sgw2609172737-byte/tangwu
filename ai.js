@@ -8,7 +8,7 @@
   // 搜索不携带历史日志；完整复制可变的嵌套状态，绝不写入真实对局。
   function cloneGame(g) {
     return { ...g, log: [], chainDigits: new Set(g.chainDigits), banned: [...g.banned], banPicks: [...g.banPicks],
-      players: g.players.map((p) => ({ ...p, dummy: { ...p.dummy }, yingneng: { ...p.yingneng },
+      players: g.players.map((p) => ({ ...p, dummy: { ...p.dummy, reserve: [...(p.dummy.reserve || [])] }, yingneng: { ...p.yingneng },
         qibu: { ...p.qibu }, duming: { ...p.duming }, chaofeng: { ...p.chaofeng }, delayed: p.delayed.map((d) => ({ ...d })) })) };
   }
   function legalActions(g) {
@@ -20,6 +20,7 @@
     if (p.streak < 24 && p.energy >= p.skill) {
       (SK.SKILLS[p.skill] || []).forEach((sk, i) => {
         if (g.banned.includes(sk.id)) return;
+        if (sk.id === 'duming' && (p.dumingUsed || p.duming.active)) return;
         if (sk.id === 'gongping') {
           const buffs = SK.positiveBuffs(g.players[1 - g.turn]);
           if (buffs.length) { buffs.forEach((b, bi) => out.push({ type: 'act', skillIdx: i, buffIdx: bi })); return; }
@@ -45,18 +46,28 @@
     return power;
   }
   function playerValue(g, p) {
-    const hp = p.hp * 10 - Math.max(0, 11 - p.hp) * 9;
+    const opponent = g.players[p === g.players[0] ? 1 : 0];
+    // 满血附近继续刷小治疗的边际价值较低；残血时仍然优先保命。
+    const hp = Math.min(21, p.hp) * 10 + Math.max(0, p.hp - 21) * 3 - Math.max(0, 11 - p.hp) * 9;
     const delayed = p.delayed.reduce((sum, d) => sum + d.dmg, 0);
+    const dummies = p.dummy.alive ? [p.dummy.hp, ...(p.dummy.reserve || [])] : [];
+    const reserveHp = dummies.reduce((sum, value) => sum + value, 0);
+    const effectiveHp = p.hp + Math.min(20, reserveHp);
+    const incoming = Math.max(2.5, 2 + Math.min(4, opponent.shuangbei) * .8 + (p.qibu.stage ? 2 : 0));
+    const horizon = Math.max(1.5, Math.min(8, (effectiveHp - delayed) / incoming));
+    const income = Math.min(3, p.shuangbei) + Math.max(0, Math.min(10, p.shuangbei) - 3) * .4;
+    const regen = p.huxi * (p.qianghua ? 2 : 1);
+    const dummyValue = (1 - Math.pow(.8, dummies.length)) * 100 + Math.min(100, reserveHp) * 2;
     const deathClock = p.duming.active ? 12 + 65 / Math.max(1, p.duming.turnsLeft) : 0;
-    return hp + p.energy * 2.4 + handPower(g, p)
-      + (p.dummy.alive ? 20 + Math.min(25, p.dummy.hp) * 5 : 0)
-      + p.shuangbei * 9 + p.huxi * 13 + (p.qianghua ? 9 : 0)
-      + (p.wudi ? 20 : 0) + (p.jingji ? 10 : 0) + (p.cuidu ? 12 : 0)
-      + (p.bishi ? 7 : 0) + (p.tanghua ? 3 : 0)
-      + (p.yingneng.active ? 4 + p.yingneng.idle * 4 : 0)
+    // 给未来数个自身回合的收入与回血估值，而非把永久发育当一次小收益。
+    return hp + p.energy * 3.2 + handPower(g, p) + dummyValue
+      + income * horizon * 6 + regen * horizon * 6 + (p.qianghua ? 16 : 0)
+      + (p.wudi ? 20 : 0) + (p.jingji ? 10 : 0) + (p.cuidu ? 18 : 0)
+      + (p.bishi ? horizon * 7 : 0) + (p.tanghua ? 26 : 0)
+      + (p.yingneng.active ? 22 + (p.yingneng.charge ?? p.yingneng.idle ?? 0) * 5 : 0)
       + (p.chaofeng.pending ? 7 : 0)
-      - (p.qibu.stage === 1 ? 25 : p.qibu.stage === 2 ? 16 : 0)
-      - delayed * 7 - p.freeze * 12 - deathClock;
+      - (p.qibu.stage === 1 ? 30 : p.qibu.stage === 2 ? 20 : 0)
+      - delayed * 8 - p.freeze * 12 - deathClock;
   }
   function evalGame(g, aiIdx) {
     if (g.over) return g.result === 'draw' ? 0 : g.winner === aiIdx ? 100000 : -100000;

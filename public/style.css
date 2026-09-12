@@ -216,3 +216,12 @@ html[data-motion=reduced] .skill-card:hover .card-svg,html[data-motion=reduced] 
 .artbook-intro { display:flex; justify-content:space-between; gap:20px; align-items:center; margin-bottom:24px; }.artbook-grid { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:15px; }.artbook-grid .card-art { height:180px; }.artbook-grid .skill-card { width:100%; }.artbook-stage { display:flex; gap:16px; margin:20px 0; }.artbook-stage .player-card { flex:1; text-align:center; padding:14px; }.artbook-stage .p-name { margin-bottom:8px; }.artbook-stage svg.hand { height:80px; }.artbook-grid .skill-card .card-desc { display:none; }.artbook-grid .skill-card .card-name { font-size:14px; }.artbook-grid .card-tag { display:none; }
 @media(max-width:820px) { .artbook-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }.artbook-grid .card-art { height:140px; } }
 @media(max-width:480px) { .artbook-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }.artbook-grid .card-art { height:145px; }.artbook-intro { display:block; }.header-link { font-size:11px; padding:4px; }.chain-indicator { font-size:10px; padding:2px 5px; } }
+
+.ban-summary { grid-column:1/-1; border:1px solid #c08f6866; border-radius:10px; padding:14px 16px; background:#dfb78009; }
+.ban-summary-head { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:10px; }
+.ban-summary-head strong { color:var(--gold); font-size:13px; }.ban-summary-head span { color:var(--dim); font-size:11px; }
+.ban-summary-list { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+.banned-detail { display:grid; grid-template-columns:58px minmax(0,1fr); gap:10px; align-items:start; }
+.banned-art { height:58px; border-radius:7px; overflow:hidden; opacity:.8; }.banned-name { font-weight:700; font-size:13px; color:var(--txt); }.banned-name span { font:11px Consolas,monospace; color:var(--gold); padding-left:6px; }
+.banned-detail p { font-size:11px; line-height:1.7; color:var(--dim); margin-top:3px; }
+@media(max-width:560px) { .ban-summary-list { grid-template-columns:1fr; }.ban-summary { padding:12px; }.banned-detail { grid-template-columns:48px minmax(0,1fr); }.banned-art { height:48px; } }

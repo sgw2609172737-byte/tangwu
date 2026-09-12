@@ -274,6 +274,7 @@ function renderGame() {
   const oppIdx = 1 - myIdx;
   const meP = state.players[myIdx];
   const oppP = state.players[oppIdx];
+  renderBanSummary($('#ban-summary'), state.banned, state.catalog);
   renderPlayerCard($('#me-card'), meP, '我', state.turn === myIdx);
   renderPlayerCard($('#opp-card'), oppP, '对手', state.turn === oppIdx);
 
@@ -336,7 +337,7 @@ function renderControls(actor) {
   skills.forEach((sk, i) => {
     if (state.banned && state.banned.indexOf(sk.id) >= 0) return; // 被禁技能不显示
     vis++;
-    html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`, vis);
+    html += skillCardHTML(sk, digit, afford && !(sk.id === 'duming' && turnP.dumingUsed), `data-skill="${i}"`, vis);
   });
   html += `</div><button id="btn-pass" class="pass-btn">空过（结束回合）</button><div class="kbd-hint">提示：数字键选技能 · P 键空过</div>`;
   el.innerHTML = html;

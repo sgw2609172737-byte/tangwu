@@ -268,18 +268,18 @@ test('嘲讽：对方下回合伤害<4 → 反伤(4-n)', () => {
   assert.strictEqual(g.turn, first);
 });
 
-test('盈能：1回合未攻击后下次伤害+1，用后重新计数', () => {
+test('盈能：初始3层充能，下次攻击消耗并增伤', () => {
   const g = mk(); const first = g.turn;
   const p = g.players[first], o = g.players[1 - first];
   p.energy = 8;
-  force(g, 6); act(g, 'yingneng'); // p回合结束 → idle=1
-  assert.strictEqual(p.yingneng.idle, 1);
+  force(g, 6); act(g, 'yingneng'); // 初始充能3层，不按闲置回合增长
+  assert.strictEqual(p.yingneng.charge, 3);
   skipTurn(g); // o回合
   assert.strictEqual(g.turn, first);
   o.hp = 21; p.energy = 11;
-  force(g, 1); act(g, 'quan'); // 2+1=3
-  assert.strictEqual(o.hp, 18);
-  assert.strictEqual(p.yingneng.idle, 0);
+  force(g, 1); act(g, 'quan'); // 2+3=5
+  assert.strictEqual(o.hp, 16);
+  assert.strictEqual(p.yingneng.charge, 0);
 });
 
 test('淬毒：攻击技能给目标挂1层下回合毒伤，不受增伤', () => {
@@ -298,7 +298,7 @@ test('淬毒：攻击技能给目标挂1层下回合毒伤，不受增伤', () =
   assert.strictEqual(o.delayed.length, 1);
   assert.strictEqual(o.delayed[0].dmg, 1);
   p.duming = { active: false, turnsLeft: 0 };
-  skipTurn(g); // o回合 → p回合开始，毒伤结算
+  skipTurn(g); // o回合结束，毒伤结算
   assert.strictEqual(g.turn, first);
   assert.strictEqual(o.hp, 15); // 1点毒伤（无增伤）
 });
@@ -387,13 +387,14 @@ test('公平正义：不再+1$', () => {
   assert.strictEqual(p.energy, 1); // 8-7，无 +1$
 });
 
-test('识破：互换本体与假人血量再打1伤', () => {
+test('识破：清空备用假人后打1伤，不再交换血量', () => {
   const g = mk(); const p = cur(g), o = opp(g);
   o.hp = 10; o.dummy = { alive: true, hp: 3, castBefore: true };
   p.energy = 9;
   force(g, 9); act(g, 'shipo');
-  assert.strictEqual(o.hp, 2); // 3-1
-  assert.strictEqual(o.dummy.hp, 10);
+  assert.strictEqual(o.hp, 9); // 本体10-1，不换血
+  assert.strictEqual(o.dummy.hp, 0);
+  assert.strictEqual(o.dummy.alive, false);
 });
 
 test('同时倒下→平局（荆棘反杀）', () => {
@@ -483,11 +484,11 @@ test('连出技能上限：24次后相加自动空过，对方出技能才解锁
   assert.strictEqual(p.streak, 0); // 对方出技能后 p 解锁
 });
 
-test('赌命：再次赌命不重置"整局限一次"的额外行动标记', () => {
+test('赌命：施放不重置"整局限一次"的额外行动标记', () => {
   const g = mk(); const p = cur(g), o = opp(g);
   p.dumingExtraUsed = true; // 已使用过"瞬时伤害≥9"额外行动
   p.energy = 11; o.hp = 30;
-  force(g, 8); act(g, 'duming'); // 再次释放赌命
+  force(g, 8); act(g, 'duming'); // 验证既有额外行动标记不被覆盖
   assert.strictEqual(p.duming.active, true);
   assert.strictEqual(p.dumingExtraUsed, true); // 标记不被重置
 });

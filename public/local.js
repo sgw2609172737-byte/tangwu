@@ -124,14 +124,14 @@ function buffChips(p) {
   const push = (key, name, detail) => chips.push(`<span class="buff" data-key="${key}" title="${esc(detail)}">${esc(name)}${detail ? '·' + esc(detail) : ''}</span>`);
   if (p.jingji) push('jingji', '荆棘', '反弹一次伤害');
   if (p.wudi) push('wudi', '无敌', '抵挡一次攻击+2血');
-  if (p.yingneng.active) push('yingneng', '盈能', `闲置${p.yingneng.idle}回合`);
+  if (p.yingneng.active) push('yingneng', '盈能', `充能${p.yingneng.charge ?? p.yingneng.idle ?? 0}/6 · 下次攻击增伤`);
   if (p.shuangbei > 0) push('shuangbei', '双倍圣水', `每回合+${p.shuangbei}$`);
-  if (p.huxi > 0) push('huxi', '呼吸回血', `每回合+${p.huxi}血`);
-  if (p.qianghua) push('qianghua', '强化', '★技能加血+2');
+  if (p.huxi > 0) push('huxi', '呼吸回血', `每回合+${p.huxi * (p.qianghua ? 2 : 1)}血${p.qianghua ? '（强化）' : ''}`);
+  if (p.qianghua) push('qianghua', '强化', '其他★技能+2；呼吸每层额外+1');
   if (p.bishi) push('bishi', '鄙视', '被动偷费用');
   if (p.tanghua) push('tanghua', '假人唐化', '假人可无限召唤');
   if (p.cuidu) push('cuidu', '淬毒', '攻击附带1毒伤');
-  if (p.dummy.alive) push('dummy', '假人', `${p.dummy.hp}血`);
+  if (p.dummy.alive) push('dummy', '假人', `${1 + (p.dummy.reserve || []).length}个 · 队首${p.dummy.hp}血`);
   if (p.inDummyCombat) push('dummyC', '假人作战', '灵魂在假人中');
   if (p.qibu.stage === 1) push('qibu', '七步', '每回合结束-3');
   if (p.qibu.stage === 2) push('qibu', '七步', '每回合结束-2');
@@ -139,7 +139,7 @@ function buffChips(p) {
   if (p.freeze > 0) push('freeze', '冰封', `${p.freeze}回合`);
   if (p.chaofeng.pending) push('chaofeng', '嘲讽', '待触发');
   if (p.huanwuSkip) push('huanwu', '幻雾', '下回合跳过相加');
-  if (p.delayed.length) push('delayed', '延迟伤害', p.delayed.map((d) => d.desc).join('+'));
+  if (p.delayed.length) push('delayed', '延迟伤害', `自己回合结束-${p.delayed.reduce((sum,d) => sum+d.dmg,0)}血 · ${p.delayed.map((d) => d.desc).join('+')}`);
   return chips.join('');
 }
 
@@ -183,6 +183,7 @@ function render() {
     gameEl._animT = setTimeout(() => gameEl.classList.remove('anim'), 520);
     if (window.TW_SFX) TW_SFX.whoosh();
   }
+  renderBanSummary($('#ban-summary'), G.banned, SK.SKILLS);
   renderCard($('#p0-card'), G.players[0], 0);
   renderCard($('#p1-card'), G.players[1], 1);
   let b;
@@ -251,7 +252,7 @@ function renderControls() {
   let visibleSkill = 0;
   skills.forEach((sk, i) => {
     if (G.banned && G.banned.indexOf(sk.id) >= 0) return; // 被禁技能不显示
-    html += skillCardHTML(sk, digit, afford, `data-skill="${i}"`, ++visibleSkill);
+    html += skillCardHTML(sk, digit, afford && !(sk.id === 'duming' && (turnP.dumingUsed || turnP.duming.active)), `data-skill="${i}"`, ++visibleSkill);
   });
   html += '</div><button id="btn-pass" class="pass-btn">空过（结束回合）</button>';
   el.innerHTML = html;
