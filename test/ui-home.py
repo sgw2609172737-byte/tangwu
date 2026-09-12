@@ -13,7 +13,7 @@ try:
   page=browser.new_page(viewport={'width':1440,'height':1000});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   page.goto(base);page.wait_for_load_state('networkidle');page.wait_for_timeout(750)
   page.screenshot(path=str(out/'home-premium.png'),full_page=True)
-  assert page.locator('.showcase-card').count()==3
+  assert page.locator('.showcase-card').count()==40
   assert page.locator('.hero-hands').count()==0
   page.locator('[data-entry=host]').click();assert page.locator('#btn-create').is_visible();assert page.locator('#btn-create-ai').is_hidden()
   page.keyboard.press('ArrowRight');assert page.locator('#code-input').is_visible()
@@ -25,7 +25,7 @@ try:
   page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(out/'home-premium-mobile.png'),full_page=True)
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
   page.set_viewport_size({'width':320,'height':760});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-  page.goto(base+'/local.html');page.wait_for_load_state('networkidle');assert page.locator('.showcase-card').count()==3
+  page.goto(base+'/local.html');page.wait_for_load_state('networkidle');assert page.locator('.showcase-card').count()==40
   page.locator('[data-mode=pvp]').click();page.locator('#btn-start').click();assert not page.locator('body').evaluate('(e)=>e.classList.contains("home-visible")')
   assert not errors,errors;print('PASS: new hero, tabs, keyboard switching, retained nickname, pointer tilt, motion reduction, 390/320px layout, local menu and game transition; no JS errors')
   browser.close()

@@ -12,52 +12,41 @@
     const controls=document.createElement('div');controls.className='deck-controls';
     controls.innerHTML='<button type="button" data-deck-prev aria-label="上一张技能">←</button><span class="deck-position"></span><button type="button" data-deck-next aria-label="下一张技能">→</button><button type="button" data-deck-pause aria-pressed="false">暂停轮播</button>';
     scene.insertAdjacentElement('afterend',controls);
-    let current=0, cycleTimer=null, paused=false, turning=false;
-    const animations=new Set();
-    const at=(n)=>deck[(n+deck.length)%deck.length];
-    function card(skill,side) {
-      const el=document.createElement('div');el.className=`showcase-card showcase-card--${side}`;el.dataset.homeSkill=skill.id;
-      el.innerHTML=`<div class="showcase-float"><div class="showcase-top"><span>${skill.label}</span><b>${skill.cost}</b></div><div class="showcase-art">${SKILL_ART[skill.id].svg}</div><div class="showcase-bottom"><strong>${esc(skill.name)}</strong><span>TANGWU</span></div></div>`;
-      return el;
-    }
-    function renderDeck() {
-      showcase.replaceChildren(card(at(current-1),'left'),card(at(current),'center'),card(at(current+1),'right'));
-      showcase.dataset.deckSize=deck.length;showcase.dataset.currentId=at(current).id;
-      controls.querySelector('.deck-position').textContent=`${String(current+1).padStart(2,'0')} / ${deck.length}`;
+    // 四十张卡固定在同一圆周上；只旋转整个轮盘，不移除或重新插入卡片。
+    const CARD_TIME=4500, TURN_TIME=CARD_TIME*deck.length;
+    let current=-1, counterTimer=null, paused=false;
+    const ring=document.createElement('div');ring.className='skill-wheel';
+    ring.innerHTML=deck.map((skill,index)=>`<div class="wheel-spoke" data-wheel-index="${index}" style="--card-angle:${index*360/deck.length}deg"><div class="showcase-card" data-home-skill="${skill.id}"><div class="showcase-float"><div class="showcase-top"><span>${skill.label}</span><b>${skill.cost}</b></div><div class="showcase-art">${SKILL_ART[skill.id].svg}</div><div class="showcase-bottom"><strong>${esc(skill.name)}</strong><span>TANGWU</span></div></div></div></div>`).join('');
+    showcase.replaceChildren(ring);showcase.dataset.deckSize=deck.length;
+    scene.classList.add('wheel-scene');
+    const depth=document.createElement('div');depth.className='wheel-depth';scene.appendChild(depth);
+    const rotation=ring.animate([{transform:'rotate(0deg)'},{transform:'rotate(-360deg)'}],{duration:TURN_TIME,iterations:Infinity,easing:'linear'});
+    rotation.pause();rotation.currentTime=0;
+    function updateCounter() {
+      const next=Math.round(Number(rotation.currentTime||0)/CARD_TIME)%deck.length;
+      if(next===current)return;
+      current=next;showcase.dataset.currentId=deck[current].id;
+      controls.querySelector('.deck-position').textContent=`${deck[current].name} · ${String(current+1).padStart(2,'0')} / ${deck.length}`;
+      ring.querySelectorAll('.wheel-spoke').forEach((el,index)=>el.toggleAttribute('data-current',index===current));
     }
     function stopCycle() {
-      clearTimeout(cycleTimer);cycleTimer=null;
-      animations.forEach((a)=>a.cancel());animations.clear();
-      if(turning){turning=false;renderDeck();}
+      rotation.pause();clearInterval(counterTimer);counterTimer=null;updateCounter();
     }
     function canRotate() { return !paused && document.body.classList.contains('home-motion'); }
-    function schedule() { if(canRotate() && !cycleTimer && !turning)cycleTimer=setTimeout(()=>{cycleTimer=null;advance();},2600); }
-    function move(el,side) {
-      const old={left:el.offsetLeft,top:el.offsetTop,transform:getComputedStyle(el).transform};
-      el.className=`showcase-card showcase-card--${side}`;
-      return el.animate([{transform:`translate(${old.left-el.offsetLeft}px,${old.top-el.offsetTop}px) ${old.transform==='none'?'':old.transform}`},{transform:getComputedStyle(el).transform}],{duration:700,easing:'cubic-bezier(.22,.7,.22,1)'});
-    }
-    function advance() {
-      if(!canRotate() || turning)return;
-      turning=true;
-      const left=showcase.querySelector('.showcase-card--left'),center=showcase.querySelector('.showcase-card--center'),right=showcase.querySelector('.showcase-card--right');
-      current=(current+1)%deck.length;
-      const incoming=card(at(current+1),'right');showcase.appendChild(incoming);
-      const exit=left.animate([{opacity:1,transform:getComputedStyle(left).transform},{opacity:0,transform:'translate(-45px,45px) rotate(-38deg) scale(.7)'}],{duration:650,fill:'forwards',easing:'ease-in'});
-      const a=move(center,'left'),b=move(right,'center');
-      const enter=incoming.animate([{opacity:0,transform:'translate(25px,65px) rotateY(-55deg) rotate(30deg) scale(.78)'},{opacity:1,transform:getComputedStyle(incoming).transform}],{duration:700,easing:'cubic-bezier(.22,.7,.22,1)'});
-      [exit,a,b,enter].forEach((animation)=>animations.add(animation));
-      Promise.all([exit.finished,a.finished,b.finished,enter.finished]).then(()=>{
-        if(!turning)return;
-        animations.clear();turning=false;renderDeck();schedule();
-      }).catch(()=>{});
+    function schedule() {
+      if(!canRotate())return;
+      rotation.play();
+      // 低频更新文字，轮盘由浏览器以恒定角速度逐帧合成，不靠计时器换卡。
+      if(counterTimer===null)counterTimer=setInterval(updateCounter,180);
     }
     controls.querySelector('[data-deck-pause]').onclick=()=>{
       paused=!paused;controls.querySelector('[data-deck-pause]').textContent=paused?'继续轮播':'暂停轮播';controls.querySelector('[data-deck-pause]').setAttribute('aria-pressed',String(paused));
       if(paused)stopCycle();else schedule();
     };
-    for(const [selector,direction] of [['[data-deck-prev]',-1],['[data-deck-next]',1]])controls.querySelector(selector).onclick=()=>{stopCycle();current=(current+direction+deck.length)%deck.length;renderDeck();schedule();};
-    renderDeck();
+    for(const [selector,direction] of [['[data-deck-prev]',-1],['[data-deck-next]',1]])controls.querySelector(selector).onclick=()=>{
+      stopCycle();rotation.currentTime=((current+direction+deck.length)%deck.length)*CARD_TIME;updateCounter();schedule();
+    };
+    updateCounter();
     let frame = 0;
     function syncMotion() {
       const visible = !home.classList.contains('hidden');

@@ -1,7 +1,6 @@
 import pathlib,subprocess,os,tempfile
 from playwright.sync_api import sync_playwright
 root=pathlib.Path(__file__).resolve().parents[1]
-out=pathlib.Path(tempfile.gettempdir())/'tangwu-carousel-qa';out.mkdir(exist_ok=True)
 server=subprocess.Popen(['node','-e',"const {server}=require('./server');server.listen(0,'127.0.0.1',()=>console.log(server.address().port))"],cwd=root,stdout=subprocess.PIPE,text=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
 try:
  base='http://127.0.0.1:'+server.stdout.readline().strip()
@@ -11,34 +10,42 @@ try:
   browser=p.chromium.launch(headless=True,executable_path=executable)
   page=browser.new_page(viewport={'width':1440,'height':1000});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
   page.goto(base);page.wait_for_load_state('networkidle')
-  start=page.locator('[data-showcase]').get_attribute('data-current-id')
-  page.wait_for_function('(id)=>document.querySelector("[data-showcase]").dataset.currentId!==id',arg=start,timeout=7000)
-  page.locator('[data-deck-pause]').click();paused=page.locator('[data-showcase]').get_attribute('data-current-id')
-  page.wait_for_timeout(2800);assert page.locator('[data-showcase]').get_attribute('data-current-id')==paused
-  page.locator('[data-deck-next]').click();assert page.locator('[data-showcase]').get_attribute('data-current-id')!=paused
-  page.locator('#btn-motion').click();page.locator('[data-deck-prev]').click();assert page.locator('[data-showcase]').get_attribute('data-current-id')==paused
-  page.set_viewport_size({'width':320,'height':760});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
-  # 加速计时与过渡，仅用于穷举一整轮卡组，生产代码不暴露测试接口。
-  fast=browser.new_page(viewport={'width':1280,'height':900})
-  fast.on('pageerror',lambda e:errors.append(str(e)))
-  fast.add_init_script('''(()=>{const timers=new Map();let seq=100000;const set=window.setTimeout,clear=window.clearTimeout;
-    window.setTimeout=(fn,ms,...args)=>{if(ms===2600){const id=++seq;timers.set(id,()=>fn(...args));return id;}return set(fn,ms,...args);};
-    window.clearTimeout=(id)=>{if(timers.has(id))timers.delete(id);else clear(id);};
-    window.nextTestCard=()=>{const entry=timers.entries().next();if(entry.done)throw Error('No carousel timer');timers.delete(entry.value[0]);entry.value[1]();};
-    const animate=Element.prototype.animate;Element.prototype.animate=function(frames,opts){return animate.call(this,frames,{...opts,duration:1});};})();''')
-  fast.goto(base);fast.wait_for_load_state('networkidle')
-  expected=fast.evaluate('Object.values(__TW_skills.SKILLS).flat().map(s=>s.id)')
+  assert page.locator('.showcase-card').count()==40
+  timing=page.locator('.skill-wheel').evaluate('(e)=>e.getAnimations()[0].effect.getTiming()')
+  assert timing['easing']=='linear' and timing['duration']==180000
+  page.evaluate('window.originalCards=[...document.querySelectorAll(".showcase-card")]')
+  transforms=[];times=[]
+  for _ in range(5):
+   transforms.append(page.locator('.skill-wheel').evaluate('(e)=>getComputedStyle(e).transform'))
+   times.append(page.locator('.skill-wheel').evaluate('(e)=>e.getAnimations()[0].currentTime'))
+   page.wait_for_timeout(200)
+  assert len(set(transforms))==5, 'Wheel stopped between frames'
+  assert all(b>a for a,b in zip(times,times[1:]))
+  page.locator('[data-deck-pause]').click()
+  stopped=page.locator('.skill-wheel').evaluate('(e)=>e.getAnimations()[0].currentTime')
+  page.wait_for_timeout(650)
+  assert page.locator('.skill-wheel').evaluate('(e)=>e.getAnimations()[0].currentTime')==stopped
+  page.locator('[data-deck-pause]').click();page.wait_for_timeout(200)
+  resumed=page.locator('.skill-wheel').evaluate('(e)=>e.getAnimations()[0].currentTime')
+  assert stopped<resumed<stopped+600, 'Resume jumped to a card boundary'
+  page.locator('#btn-motion').click()
+  assert page.locator('.skill-wheel').evaluate('(e)=>e.getAnimations()[0].playState')=='paused'
+  current=page.locator('[data-showcase]').get_attribute('data-current-id')
+  expected=page.evaluate('Object.values(__TW_skills.SKILLS).flat().map(s=>s.id)');start=expected.index(current)
   seen=[]
   for i in range(40):
-   current=fast.locator('[data-showcase]').get_attribute('data-current-id');seen.append(current);assert current==expected[i]
-   assert fast.locator('.showcase-card--center').get_attribute('data-home-skill')==current
-   fast.evaluate('nextTestCard()')
-   fast.wait_for_function('(id)=>document.querySelector("[data-showcase]").dataset.currentId!==id',arg=current)
+   seen.append(page.locator('[data-showcase]').get_attribute('data-current-id'))
+   assert seen[-1]==expected[(start+i)%40]
+   page.locator('[data-deck-next]').click()
   assert len(set(seen))==40
-  assert fast.locator('[data-showcase]').get_attribute('data-current-id')==expected[0]
-  assert fast.locator('.showcase-card').count()==3
+  assert page.locator('[data-showcase]').get_attribute('data-current-id')==current
+  assert page.evaluate('originalCards.every((e,i)=>e===document.querySelectorAll(".showcase-card")[i])'), 'Cards were rebuilt'
+  assert page.locator('.wheel-depth').evaluate('(e)=>getComputedStyle(e).backdropFilter')!='none'
+  page.set_viewport_size({'width':320,'height':760});assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
+  page.emulate_media(reduced_motion='reduce');page.wait_for_function('document.querySelector("#btn-motion").disabled')
+  assert page.locator('.skill-wheel').evaluate('(e)=>e.getAnimations()[0].playState')=='paused'
   assert not errors,errors
-  print('PASS: real automatic rotation, pause, manual navigation under reduced motion, 320px layout, all 40 cards in order and clean wrap-around; no JS errors')
+  print('PASS: continuous linear wheel, no card reconstruction, pause/resume same phase, all 40 positions, depth blur, reduced motion and 320px layout')
   browser.close()
 finally:
  server.terminate();server.wait(timeout=10)
