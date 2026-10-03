@@ -1,0 +1,75 @@
+/* 唐五：靛蓝战术桌、黄铜卡框、清晰的技能分类。 */
+:root { --bg1:#101a2c; --panel:#19283d; --panel2:#233650; --line:#3c506b; --txt:#edf2fa; --dim:#a4b4cd; --gold:#e3c18d; --blue:#91bcf4; }
+body { background:radial-gradient(ellipse at 25% 0%,#304d7044,transparent 65%),var(--bg1); }
+.player-card { background:linear-gradient(145deg,#21334b,#152238); border-radius:16px; box-shadow:0 12px 35px #0002; }
+.player-card.active { border-color:#e3c18d; box-shadow:0 0 0 1px #e3c18d22,0 12px 35px #0002; }
+.banner { border-radius:12px; letter-spacing:.5px; }
+.controls,.controls-local { background:linear-gradient(145deg,#1b2c43,#142136); border-radius:16px; }
+.ban-skill { position:relative; padding:0 0 14px; gap:6px; overflow:hidden; border-radius:12px; background:#17263b; }
+.ban-art { width:100%; height:108px; background:#101e30; border-bottom:1px solid #ffffff0b; }
+.ban-art svg { width:100%; height:100%; }
+.ban-skill .ban-cost { position:absolute; top:8px; right:8px; background:#101a2ce8; padding:2px 7px; border:1px solid #e3c18d55; border-radius:6px; }
+.ban-name,.ban-desc { padding:0 12px; }
+.ban-skill:hover { border-color:var(--accent,var(--gold)); }
+.ban-grid { max-height:65vh; }
+.match-tools { grid-column:1/-1; display:flex; align-items:center; flex-wrap:wrap; gap:8px; padding:10px 12px; background:#132137; border:1px solid var(--line); border-radius:12px; }
+.match-tools button,.match-tools select { min-height:34px; padding:5px 10px; font-size:12px; }
+.match-tools label { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--dim); }
+.match-tools select { width:auto; }
+.match-tools .save-status { margin-left:auto; font-size:11px; color:#9fcbb8; }
+.resume-action { width:100%; margin-top:10px; border-color:#e3c18d66; color:var(--gold); }
+.home-editorial h1 { font-family:'STKaiti','KaiTi','Songti SC',serif; font-weight:700; letter-spacing:2px; }
+.home-editorial h1 em { background:linear-gradient(110deg,#f5e4c7,#d3b483); background-clip:text; -webkit-background-clip:text; }
+.home-launcher { border-color:#b8c9e33b; }
+.wheel-spoke[data-current] .showcase-float { border-color:#e3c18d; box-shadow:0 18px 40px #0007,0 0 28px #dfbd8120; }
+.showcase-float { border-radius:10px; }
+.showcase-top { color:#c0ccdd; }
+.showcase-bottom strong { font-family:'STKaiti','KaiTi',serif; font-size:16px; }
+.artbook-grid { gap:16px; }
+.artbook-intro h1 { font-family:'STKaiti','KaiTi',serif; letter-spacing:3px; }
+.theme-energy { --accent:#e3c18d; }.theme-special { --accent:#e5b78b; }
+@media(min-width:821px) { .log-panel { background:#132137; }.add-choice { background:#182b44; border-radius:12px; }.add-choice:hover { background:#233a56; } }
+@media(max-width:480px) { .card-art { height:118px; }.card-name { font-size:14px; }.card-desc { font-size:11px; }.ban-art { height:90px; }.header-btns { flex-wrap:wrap; }.match-tools .save-status { width:100%; margin-left:0; }.home-editorial h1 { font-size:40px; } }
+@media(prefers-reduced-motion:no-preference) { html:not([data-motion=reduced]) .controls .skill-card,html:not([data-motion=reduced]) .controls-local .skill-card { animation:deal-card .28s backwards; } .skill-card:nth-child(2) { animation-delay:35ms!important; }.skill-card:nth-child(3) { animation-delay:70ms!important; }.skill-card:nth-child(4) { animation-delay:105ms!important; } }
+@keyframes deal-card { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+html[data-motion=reduced] *,html[data-motion=reduced] *::before,html[data-motion=reduced] *::after { animation:none!important; transition:none!important; scroll-behavior:auto!important; }
+.ability-trail { height:3px; background:linear-gradient(90deg,transparent,var(--fx-color)); box-shadow:0 0 12px var(--fx-color); transform-origin:left center; border-radius:3px; }
+
+/* 卡牌：完整插画窗口、压印标题、规则区、状态栏。 */
+.skill-card { padding:7px 7px 0; border:1px solid #768da05c; border-radius:12px; gap:0; background:linear-gradient(145deg,#344658,#1a2a3e 35%,#121e30); box-shadow:inset 0 1px 0 #ffffff16,0 5px 14px #0003; isolation:isolate; transition:transform .22s,border-color .22s,box-shadow .22s; }
+.skill-card::before { content:''; position:absolute; inset:3px; border:1px solid #e3c18d26; border-radius:9px; pointer-events:none; z-index:2; }
+.skill-card:hover:not(:disabled),.skill-card:focus-visible { background:linear-gradient(145deg,#3b5064,#1b2c42 35%,#15243a); border-color:var(--accent); box-shadow:inset 0 1px 0 #ffffff22,0 12px 24px #0005; transform:translateY(-5px); }
+.skill-card .card-art,.artbook-grid .card-art { flex:none; height:auto; aspect-ratio:1.12; margin:0; border:1px solid #b9c3cc27; border-radius:7px 7px 2px 2px; background:#101e30; }
+.skill-card .card-art .card-svg { width:100%; height:100%; padding:8px; }
+.skill-card .card-art::after { background:linear-gradient(180deg,#00000008 65%,#0f1b2d65); }
+.card-corner { position:absolute; width:28px; height:28px; bottom:7px; right:7px; border-right:1px solid var(--accent); border-bottom:1px solid var(--accent); opacity:.45; z-index:1; }
+.skill-card .card-cost { top:12px; left:12px; right:auto; width:38px; height:46px; padding:4px 0; display:flex; flex-direction:column; justify-content:center; gap:0; background:linear-gradient(150deg,#304158,#0c1729); border:1px solid #e3c18d99; border-radius:7px 7px 15px 15px; box-shadow:0 3px 8px #0007,inset 0 1px #fff2; color:#f6dfb9; z-index:3; }
+.skill-card .card-cost { align-items:center; }
+.card-cost strong { font:700 21px/1.05 Consolas,monospace; }.card-cost small { font:8px/1.5 'Microsoft YaHei',sans-serif; letter-spacing:1px; }
+.card-heading { position:relative; display:flex; align-items:center; gap:8px; margin-top:0; padding:11px 9px 9px; background:linear-gradient(90deg,#e3c18d0c,transparent); border-bottom:1px solid #c4b89d33; }
+.skill-card .card-name,.artbook-grid .skill-card .card-name { font:700 20px/1.35 'STKaiti','KaiTi','Songti SC',serif; letter-spacing:1px; padding:0; color:#f2e7d3; overflow-wrap:anywhere; }
+.skill-card .card-star { position:static; margin-left:auto; flex:none; padding:0; color:#ebcb90; font-size:12px; }
+.skill-card .card-desc,.artbook-grid .skill-card .card-desc { display:block; padding:11px 9px 14px; min-height:82px; font-size:12px; line-height:1.8; color:#bccbdb; overflow-wrap:anywhere; }
+.effect-value { color:#f6dfb9; font-weight:600; font-variant-numeric:tabular-nums; }
+.card-footer { display:flex; align-items:center; flex-wrap:wrap; gap:6px; margin-top:auto; min-height:35px; padding:8px 9px; border-top:1px solid #748a9d33; background:#0c17264d; }
+.skill-card .card-category { display:inline-flex; align-items:center; gap:5px; padding:0; font-size:10px; color:var(--accent); }
+.card-category::before { content:''; width:4px; height:4px; transform:rotate(45deg); background:currentColor; }
+.card-state { margin-left:auto; color:#97aac0; font-size:10px; }
+.skill-card .card-key { position:static; border:1px solid #8c9db343; padding:1px 4px; font:10px/1.25 Consolas,monospace; color:#b5c4d5; border-radius:3px; background:#101c2c; }
+.skill-card:disabled { opacity:1; border-color:#54677d60; box-shadow:inset 0 1px #ffffff0a; }
+.skill-card:disabled .card-art { filter:saturate(.5); opacity:.65; }
+.skill-card:disabled .card-cost { border-color:#7387a75e; color:#a3b4ca; }
+.skill-card:disabled .card-name { color:#bdc9d8; }
+.skill-card:disabled .card-state { color:#e1b293; }
+.skill-grid { align-items:stretch; gap:12px; }
+.artbook-grid { align-items:stretch; }
+.ban-skill { padding:6px 6px 12px; background:linear-gradient(150deg,#2f4256,#142137); box-shadow:inset 0 1px #ffffff10; border-color:#768da05c; }
+.ban-art { border:1px solid #b9c3cc27; border-radius:6px; height:120px; }
+.ban-name { color:#f2e7d3; font:700 18px/1.4 'STKaiti','KaiTi',serif; padding:3px 7px 0; }
+.ban-desc { padding:0 7px; color:#b8c7d9; }.ban-skill .ban-cost { top:11px; right:11px; }
+.wheel-spoke .showcase-float { border-color:#9bafc05c; background:linear-gradient(145deg,#344658,#152137 65%); padding:8px; box-shadow:inset 0 1px #ffffff14,0 18px 36px #0006; }
+.showcase-float::before { content:''; position:absolute; inset:3px; border:1px solid #e3c18d26; border-radius:7px; pointer-events:none; }
+.showcase-art { border:1px solid #c0cad133; }.showcase-bottom { border-top:1px solid #c4b89d33; margin-top:7px; padding-top:7px; }.showcase-bottom strong { color:#f2e7d3; }
+@media(max-width:480px) { .skill-card .card-art,.artbook-grid .card-art { aspect-ratio:1.08; }.skill-card .card-name,.artbook-grid .skill-card .card-name { font-size:18px; letter-spacing:0; }.card-heading { padding:9px 7px 7px; gap:4px; }.skill-card .card-desc,.artbook-grid .skill-card .card-desc { font-size:11px; padding:9px 7px 12px; min-height:76px; }.skill-card .card-cost { width:31px; height:39px; top:10px; left:10px; }.card-cost strong { font-size:18px; }.card-footer { padding:7px; gap:4px; }.card-state { font-size:9px; }.ban-art { height:95px; }.ban-name { font-size:16px; } }
+@media(prefers-reduced-motion:reduce) { .skill-card:hover:not(:disabled),.skill-card:focus-visible { transform:none; } }
+html[data-motion=reduced] .skill-card:hover:not(:disabled),html[data-motion=reduced] .skill-card:focus-visible { transform:none; }

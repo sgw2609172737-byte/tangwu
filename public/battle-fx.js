@@ -64,6 +64,14 @@ window.TW_FX = (() => {
     chosen = null;
     const ghost = element('cast-ghost',origin.x,origin.y,(SKILL_ART[event.skillId]||SKILL_ART._def).svg);
     ghost.style.setProperty('--fx-color',colors[type]);
+    if (!defensive && type !== 'sniper') {
+      const dx=at.x-source.x, dy=at.y-source.y;
+      const trail=element('ability-trail',source.x,source.y);
+      trail.style.setProperty('--fx-color',colors[type]);
+      trail.style.width=Math.hypot(dx,dy)+'px';
+      trail.style.rotate=Math.atan2(dy,dx)+'rad';
+      animate(trail,[{opacity:0,scale:'0 1'},{opacity:.8,scale:'1 1',offset:.5},{opacity:0,scale:'1 0'}],{duration:360});
+    }
     animate(ghost,[{opacity:0,transform:'translate(-50%,-50%) scale(.8)'},{opacity:1,offset:.2,transform:'translate(-50%,-50%) scale(1)'},
       {opacity:0,transform:`translate(calc(-50% + ${at.x-origin.x}px),calc(-50% + ${at.y-origin.y}px)) scale(.35)`}],{duration:360});
     burst(type,at,duration);
@@ -100,9 +108,13 @@ window.TW_FX = (() => {
             fill.animate([{width:width(old.hp)},{width:width(p.hp)}],{duration:360,easing:'ease-out'});
           }
           if (old.energy !== p.energy) cards[i].querySelector('.energy-badge')?.animate([{transform:'scale(1)'},{transform:'scale(1.08)'},{transform:'scale(1)'}],{duration:280});
+          if (old.skill !== p.skill) cards[i].querySelector('.hand-box.skill')?.animate([
+            {backgroundColor:'#e3c18d33',transform:'translateY(-3px)'},
+            {backgroundColor:'#e3c18d00',transform:'translateY(0)'}
+          ],{duration:380});
         }
       });
-      previousPlayers=state.players.map((p)=>({hp:p.hp,energy:p.energy}));
+      previousPlayers=state.players.map((p)=>({hp:p.hp,energy:p.energy,skill:p.skill}));
     }
     const banner=document.querySelector('#turn-banner');
     if (banner) {

@@ -9,6 +9,8 @@ let cfg = { mode: 'pve', diff: 'normal' };
 let G = null;
 let aiTimer = null;
 let toastTimer = null;
+let spectatorPaused = false, spectatorSpeed = 1;
+const SAVE_KEY = 'tangwu_match_v1';
 
 // 线上联机地址（改成你的在线版网址；留空则隐藏"线上联机"按钮）
 const ONLINE_URL = 'https://tang5.vercel.app/';
@@ -45,6 +47,7 @@ function backToMenu() {
   $('#ban').classList.add('hidden');
   $('#btn-back').classList.add('hidden');
   $('#menu').classList.remove('hidden');
+  refreshResume();
 }
 
 function names() {
@@ -57,6 +60,7 @@ function actorOf(g) { return g.controller >= 0 ? g.controller : g.turn; }
 function startGameLocal() {
   TW_FX.reset();
   cancelAI();
+  spectatorPaused = false;
   _lastLogLen = 0;
   localBanQuery = ''; localBanCost = -1;
   $('#ban-tools').innerHTML = '';
@@ -101,12 +105,12 @@ function renderBan() {
     if (G.banPicks[0] && G.banPicks[1]) { afterBan(); return; }
     sub.textContent = `🔒 盲ban：玩家${picker + 1} 从全部技能里选 1 个禁用（选完才公示）。`;
     const list = filterLocalBans(skillList());
-    grid.innerHTML = list.map((s) => `<button class="ban-skill" data-ban="${s.id}" title="${esc(s.desc)}"><span class="ban-cost">${s.digit}$</span><span class="ban-name">${esc(s.name)}</span><span class="ban-desc">${esc(s.desc)}</span></button>`).join('');
+    grid.innerHTML = list.map((s) => `<button class="ban-skill theme-${(SKILL_ART[s.id] || SKILL_ART._def).theme}" data-ban="${s.id}" title="${esc(s.desc)}"><span class="ban-cost">${s.digit}$</span><div class="ban-art">${(SKILL_ART[s.id] || SKILL_ART._def).svg}</div><span class="ban-name">${esc(s.name)}</span><span class="ban-desc">${esc(s.desc)}</span></button>`).join('');
     grid.querySelectorAll('[data-ban]').forEach((b) => { b.onclick = () => { TW.submitBan(G, picker, b.dataset.ban); renderBan(); }; });
     return;
   }
   const list = filterLocalBans(skillList());
-  grid.innerHTML = list.map((s) => `<button class="ban-skill" data-ban="${s.id}" title="${esc(s.desc)}"><span class="ban-cost">${s.digit}$</span><span class="ban-name">${esc(s.name)}</span><span class="ban-desc">${esc(s.desc)}</span></button>`).join('');
+  grid.innerHTML = list.map((s) => `<button class="ban-skill theme-${(SKILL_ART[s.id] || SKILL_ART._def).theme}" data-ban="${s.id}" title="${esc(s.desc)}"><span class="ban-cost">${s.digit}$</span><div class="ban-art">${(SKILL_ART[s.id] || SKILL_ART._def).svg}</div><span class="ban-name">${esc(s.name)}</span><span class="ban-desc">${esc(s.desc)}</span></button>`).join('');
   grid.querySelectorAll('[data-ban]').forEach((b) => { b.onclick = () => { TW.submitBan(G, 0, b.dataset.ban); renderBan(); }; });
 }
 
@@ -200,6 +204,8 @@ function render() {
   renderControls();
   renderResult();
   TW_FX.sync(G, [$('#p0-card'), $('#p1-card')], SK.SKILLS);
+  updateMatchTools();
+  saveMatch();
 }
 
 // AI 思考提示（先画出来，再让出事件循环给浏览器渲染，最后才开始计算）
@@ -232,7 +238,7 @@ function renderControls() {
   const oppP = G.players[1 - G.turn];
   const humanDecides = (cfg.mode === 'pvp') || (cfg.mode === 'pve' && actorOf(G) === 0); // 人机：你是0号，AI是1号
   if (!humanDecides) {
-    let msg = (cfg.mode === 'ai') ? '🤖 AI 对战中…' : '🤖 AI 思考中…';
+    let msg = (cfg.mode === 'ai') ? (spectatorPaused ? '观战已暂停，可调整速度后继续。' : '🤖 AI 对战中…') : '🤖 AI 思考中…';
     if (cfg.mode === 'pve' && G.turn === 0 && G.controller >= 0) msg = '你的回合被 AI 控制中…';
     el.innerHTML = `<div class="wait-msg">${msg}</div>`;
     return;
@@ -252,7 +258,7 @@ function renderControls() {
   let visibleSkill = 0;
   skills.forEach((sk, i) => {
     if (G.banned && G.banned.indexOf(sk.id) >= 0) return; // 被禁技能不显示
-    html += skillCardHTML(sk, digit, afford && !(sk.id === 'duming' && (turnP.dumingUsed || turnP.duming.active)), `data-skill="${i}"`, ++visibleSkill);
+    html += skillCardHTML(sk, digit, afford && !(sk.id === 'duming' && (turnP.dumingUsed || turnP.duming.active)), `data-skill="${i}"`, ++visibleSkill, skillUnavailableReason(sk, turnP, digit));
   });
   html += '</div><button id="btn-pass" class="pass-btn">空过（结束回合）</button>';
   el.innerHTML = html;
@@ -313,7 +319,7 @@ function cancelAI() {
 }
 function scheduleAI() {
   cancelAI();
-  if (!G || G.over) return;
+  if (!G || G.over || (cfg.mode === 'ai' && spectatorPaused)) return;
   const needAI = cfg.mode === 'ai' || (cfg.mode === 'pve' && actorOf(G) === 1);
   if (!needAI) return;
   const generation = aiGeneration, game = G;
@@ -340,7 +346,7 @@ function scheduleAI() {
       aiWorker.onerror = (event) => { event.preventDefault(); fallback(); };
       aiWorker.postMessage({ game: TW.serializeGame(G), actor: actorOf(G), difficulty: cfg.diff, budget: cfg.diff === 'hard' ? 700 : 100 });
     } catch (e) { fallback(); }
-  }, 320);
+  }, 320 / (cfg.mode === 'ai' ? spectatorSpeed : 1));
 }
 
 function renderResult() {
@@ -382,3 +388,66 @@ document.addEventListener('keydown', (e) => {
   else if (G.step === 'awaitAction' && e.key.toLowerCase() === 'p') button = $('#btn-pass');
   if (button && !button.disabled) { e.preventDefault(); button.click(); }
 });
+
+
+// 本地对局：每次结算后存档，继续时重新建立演出与 AI 调度基线。
+const resumeButton = document.createElement('button');
+resumeButton.id = 'btn-resume'; resumeButton.className = 'resume-action hidden';
+resumeButton.textContent = '继续上次对局';
+$('#btn-start').insertAdjacentElement('afterend', resumeButton);
+const matchTools = document.createElement('div');
+matchTools.className = 'match-tools';
+matchTools.innerHTML = '<button id="btn-spectate-pause" class="ghost" aria-pressed="false">暂停观战</button><label id="spectate-speed-label">观战速度<select id="spectate-speed" aria-label="观战速度"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label><button id="btn-export-log" class="ghost">导出战报</button><span class="save-status" aria-live="polite"></span>';
+$('#controls').insertAdjacentElement('beforebegin', matchTools);
+function readSave() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
+    if (saved?.version !== 1 || !['pve','pvp','ai'].includes(saved.cfg?.mode) || !['easy','normal','hard'].includes(saved.cfg?.diff)) return null;
+    const game = TW.deserializeGame(saved.game);
+    if (game.phase !== 'playing' || game.over || game.players?.length !== 2 || ![0,1].includes(game.turn) || !Array.isArray(game.log) || !Array.isArray(game.banned)) return null;
+    return { ...saved, game };
+  } catch (_) { return null; }
+}
+function refreshResume() { resumeButton.classList.toggle('hidden', !readSave()); }
+function saveMatch() {
+  const status = matchTools.querySelector('.save-status');
+  try {
+    if (G.over) { localStorage.removeItem(SAVE_KEY); status.textContent = '对局结束'; return; }
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ version:1, cfg, game:TW.serializeGame(G) }));
+    status.textContent = '进度已保存';
+  } catch (_) { status.textContent = '无法保存：浏览器存储不可用'; }
+}
+function updateMatchTools() {
+  const watching = cfg.mode === 'ai' && !G.over;
+  $('#btn-spectate-pause').classList.toggle('hidden', !watching);
+  $('#spectate-speed-label').classList.toggle('hidden', !watching);
+  $('#btn-spectate-pause').textContent = spectatorPaused ? '继续观战' : '暂停观战';
+  $('#btn-spectate-pause').setAttribute('aria-pressed', String(spectatorPaused));
+}
+resumeButton.onclick = () => {
+  const saved = readSave();
+  if (!saved) { refreshResume(); toast('存档不可用，请开始新对局'); return; }
+  cancelAI(); TW_FX.reset(); cfg = saved.cfg; G = saved.game;
+  spectatorPaused = cfg.mode === 'ai'; _prevHp[0] = _prevHp[1] = -1; _lastLogLen = 0;
+  setOn('#mode-seg', document.querySelector(`[data-mode="${cfg.mode}"]`));
+  document.querySelector(`[data-diff="${cfg.diff}"]`).click();
+  $('#diff-row').style.display = cfg.mode === 'pvp' ? 'none' : 'flex';
+  $('#menu').classList.add('hidden'); $('#ban').classList.add('hidden');
+  $('#btn-back').classList.remove('hidden'); $('#game').classList.remove('hidden');
+  render(); scheduleAI(); toast('已继续上次对局');
+};
+$('#btn-spectate-pause').onclick = () => {
+  spectatorPaused = !spectatorPaused; cancelAI(); updateMatchTools(); renderControls();
+  if (!spectatorPaused) scheduleAI();
+};
+$('#spectate-speed').onchange = (event) => {
+  spectatorSpeed = Number(event.target.value); scheduleAI();
+};
+$('#btn-export-log').onclick = () => {
+  if (!G) return;
+  const content = '唐五 · 对局战报\n' + G.players.map(p => p.name).join(' vs ') + '\n\n' + G.log.join('\n');
+  const url = URL.createObjectURL(new Blob([content], { type:'text/plain;charset=utf-8' }));
+  const link = document.createElement('a'); link.href = url; link.download = '唐五-战报.txt';
+  document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+refreshResume();

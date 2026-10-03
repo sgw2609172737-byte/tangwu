@@ -203,11 +203,11 @@ function renderBanGrid() {
     for (const s of state.catalog[d]) skills.push({ ...s, digit: d });
   }
   const shown = skills.filter((s) =>
-    (banCost < 0 || Number(s.digit) === banCost) && (!banQuery || s.name.includes(banQuery)));
+    (banCost < 0 || Number(s.digit) === banCost) && (!banQuery || (s.name + s.desc).includes(banQuery)));
   grid.innerHTML = shown.map((s) => `
     <button class="ban-skill theme-${(SKILL_ART[s.id] || SKILL_ART._def).theme}" data-ban="${s.id}" title="${esc(s.desc)}">
       <span class="ban-cost">${s.digit}$</span>
-      <span class="ban-name">${esc(s.name)}</span>
+      <div class="ban-art">${(SKILL_ART[s.id] || SKILL_ART._def).svg}</div><span class="ban-name">${esc(s.name)}</span>
       <span class="ban-desc">${esc(s.desc)}</span>
     </button>`).join('') || '<div class="wait-msg">没有匹配的技能</div>';
   grid.querySelectorAll('[data-ban]').forEach((b) => {
@@ -337,7 +337,7 @@ function renderControls(actor) {
   skills.forEach((sk, i) => {
     if (state.banned && state.banned.indexOf(sk.id) >= 0) return; // 被禁技能不显示
     vis++;
-    html += skillCardHTML(sk, digit, afford && !(sk.id === 'duming' && turnP.dumingUsed), `data-skill="${i}"`, vis);
+    html += skillCardHTML(sk, digit, afford && !(sk.id === 'duming' && turnP.dumingUsed), `data-skill="${i}"`, vis, skillUnavailableReason(sk, turnP, digit));
   });
   html += `</div><button id="btn-pass" class="pass-btn">空过（结束回合）</button><div class="kbd-hint">提示：数字键选技能 · P 键空过</div>`;
   el.innerHTML = html;

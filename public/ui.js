@@ -31,7 +31,7 @@ var handSVG = (() => {
 
 // 40 张独立构图的游戏插画，按技能表顺序映射到 8×5 图集。
 const SKILL_ART = (() => {
-  const atlas = new URL('assets/skills/skill-atlas.png', document.currentScript.src).href;
+  const atlas = new URL('assets/skills/skill-atlas-v2.png', document.currentScript.src).href;
   const entries = [
     ['danxiao','energy'], ['jinghua','heal'], ['jiaren','summon'], ['jiarenqh','summon'],
     ['xiao','energy'], ['quan','attack'], ['yi','digit'], ['tao','heal'],
@@ -46,24 +46,35 @@ const SKILL_ART = (() => {
   ];
   const out = {};
   entries.forEach(([id, theme], i) => {
-    // 实际生成图的行间距为 192px，末尾留有额外背景；每格内缩避免邻格漏边。
-    const x = (i % 8) * (1586 / 8) + 3, y = Math.floor(i / 8) * 192 + 3;
-    out[id] = { theme, svg: `<svg class="card-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><svg width="100" height="100" viewBox="${x} ${y} 192.25 186" overflow="hidden" preserveAspectRatio="none"><image href="${esc(atlas)}" width="1586" height="992"/></svg></svg>` };
+    // 新版图集为完整 8×5 等分网格；每格内缩 3px 避免网格边线。
+    const x = (i % 8) * (1586 / 8) + 3, y = Math.floor(i / 8) * (992 / 5) + 3;
+    out[id] = { theme, svg: `<svg class="card-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><svg width="100" height="100" viewBox="${x} ${y} 192.25 192.4" overflow="hidden" preserveAspectRatio="none"><image href="${esc(atlas)}" width="1586" height="992"/></svg></svg>` };
   });
   out._def = out.qianghua;
   return out;
 })();
 
-function skillCardHTML(sk, digit, afford, attrs = '', keyHint = 0) {
+// 只做排版强调，保留效果原文；先分段再转义，避免将内容当作 HTML。
+function skillDescriptionHTML(desc) {
+  return String(desc).split(/(\d+(?:点伤害|点生命|点费用|伤|血|费|\$|回合|层|次)?)/g)
+    .map((part, i) => i % 2 ? `<b class="effect-value">${esc(part)}</b>` : esc(part)).join('');
+}
+function skillUnavailableReason(sk, player, digit) {
+  if ((player.streak || 0) >= 24) return '连出已达上限';
+  if (sk.id === 'duming' && (player.dumingUsed || player.duming?.active)) return '本局已使用';
+  if (player.energy < digit) return `还需 ${digit - player.energy} 费用`;
+  return '';
+}
+function skillCardHTML(sk, digit, afford, attrs = '', keyHint = 0, unavailable = '') {
   const art = SKILL_ART[sk.id] || SKILL_ART._def;
-  return `<button data-skill-id="${esc(sk.id)}" class="skill-card theme-${art.theme}${afford ? '' : ' disabled'}" ${afford ? '' : 'disabled'} ${attrs} title="${esc(sk.desc)}">
-    <div class="card-art">${art.svg}</div>
-    <div class="card-name">${esc(sk.name)}</div>
-    <div class="card-desc">${esc(sk.desc)}</div>
-    <div class="card-cost">${digit}$</div>
-    ${keyHint > 0 && afford ? `<div class="card-key">${keyHint}</div>` : ''}
-    ${sk.star ? '<div class="card-star">★</div>' : ''}
-    ${sk.isDigit ? '<div class="card-tag">数字</div>' : ''}
+  const category = ({attack:'攻击',heal:'治疗',energy:'蓄势',control:'控制',defense:'防御',summon:'召唤',digit:'连携',special:'特殊'})[art.theme];
+  const state = afford ? (sk.isDigit ? '数字连携' : '') : unavailable || '暂不可用';
+  return `<button data-skill-id="${esc(sk.id)}" class="skill-card theme-${art.theme}${afford ? '' : ' disabled'}" ${afford ? '' : 'disabled'} ${attrs} title="${esc(sk.desc + (afford ? '' : ' · ' + state))}" aria-label="${esc(sk.name)}，${digit} 费用，${esc(sk.desc)}${afford ? '' : '，' + esc(state)}">
+    <div class="card-art">${art.svg}<span class="card-corner" aria-hidden="true"></span></div>
+    <div class="card-cost" aria-label="${digit} 费用"><strong>${digit}</strong><small>费用</small></div>
+    <div class="card-heading"><div class="card-name">${esc(sk.name)}</div>${sk.star ? '<span class="card-star" title="受强化加成" aria-label="受强化加成">★</span>' : ''}</div>
+    <div class="card-desc">${skillDescriptionHTML(sk.desc)}</div>
+    <div class="card-footer"><span class="card-category">${category}</span><span class="card-state">${esc(state)}</span>${keyHint > 0 && afford ? `<kbd class="card-key" title="快捷键 ${keyHint}">${keyHint}</kbd>` : ''}</div>
   </button>`;
 }
 
