@@ -34,6 +34,10 @@ with tempfile.TemporaryDirectory(prefix='tw-human-ui-') as temp:
             assert '私密验收名字' not in json.dumps(data,ensure_ascii=False)
             with page.expect_download() as d:page.locator('#training-connect').click()
             connection=out/'human-ui-link.json';d.value.save_as(str(connection))
+            page.locator('#training-enabled').uncheck();page.wait_for_function("document.querySelector('#training-status').textContent.includes('未开启')")
+            with page.expect_file_chooser() as chooser:page.locator('#training-restore').click()
+            chooser.value.set_files(str(connection));page.wait_for_function("document.querySelector('#training-status').textContent.includes('收录 2 局')")
+            assert page.locator('#training-enabled').is_checked()
             imported=pathlib.Path(temp)/'imported'
             subprocess.run(['node','scripts/sync-human.js','--link',str(connection),'--out',str(imported),'--simulations','4'],cwd=root,check=True,stdout=subprocess.PIPE)
             assert json.loads((imported/'summary.json').read_text())['games']==2

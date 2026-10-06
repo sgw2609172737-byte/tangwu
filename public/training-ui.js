@@ -5,7 +5,7 @@
   let enabled=false,identity='',last=Promise.resolve(),count=0;
   try {enabled=localStorage.getItem(PREF)==='1';identity=localStorage.getItem(KEY)||'';}catch(_){}
   const panel=document.createElement('details');panel.className='training-panel';
-  panel.innerHTML='<summary>与 AI 一起进步</summary><label class="training-choice"><input id="training-enabled" type="checkbox">让我的人机对局参与训练</label><p class="training-help">记录完整的游戏行动与胜负，不记录昵称。训练按批次进行，新模型通过验证后才会上线；认输和中断不计入样本。</p><p id="training-status" role="status"></p><div class="training-actions"><button id="training-export" class="ghost">导出对局</button><button id="training-connect" class="ghost">连接本机训练</button><button id="training-copy" class="ghost">复制连接</button></div><p class="training-help">云端保留最近 50 局；训练身份保存在当前浏览器。关闭开关会停止接收新记录。</p>';
+  panel.innerHTML='<summary>与 AI 一起进步</summary><label class="training-choice"><input id="training-enabled" type="checkbox">让我的人机对局参与训练</label><p class="training-help">记录完整的游戏行动与胜负，不记录昵称。训练按批次进行，新模型通过验证后才会上线；认输和中断不计入样本。</p><p id="training-status" role="status"></p><div class="training-actions"><button id="training-export" class="ghost">导出对局</button><button id="training-connect" class="ghost">连接本机训练</button><button id="training-copy" class="ghost">复制连接</button><button id="training-restore" class="ghost">恢复训练连接</button><input id="training-file" type="file" accept=".json,application/json" hidden></div><p class="training-help">云端保留最近 50 局；训练身份保存在当前浏览器。关闭开关会停止接收新记录。</p>';
   const anchor=document.querySelector('#panel-ai')||document.querySelector('#btn-start')?.parentElement;
   if(!anchor)return;anchor.append(panel);
   const checkbox=panel.querySelector('#training-enabled'),status=panel.querySelector('#training-status');checkbox.checked=enabled;
@@ -54,6 +54,15 @@
     await last;if(!online||!enabled||!identity){show('请先在网页版开启参与训练。');return;}
     try{await navigator.clipboard.writeText(JSON.stringify({version:1,site:location.origin,identity}));show('连接已复制，可保存为本机训练连接文件。请勿公开分享。');}
     catch(_){show('浏览器未允许复制，请使用连接文件下载。');}
+  };
+  const fileInput=panel.querySelector('#training-file');
+  panel.querySelector('#training-restore').onclick=()=>{if(!online){show('请在网页版恢复训练连接。');return;}fileInput.click();};
+  fileInput.onchange=async()=>{
+    try{const file=fileInput.files[0];if(!file)return;if(file.size>4096)throw Error('训练连接文件过大');
+      const data=JSON.parse(await file.text());if(data.version!==1||data.site!==location.origin||!/^[a-f0-9]{64}$/.test(data.identity||''))throw Error('训练连接不属于当前网站');
+      if(stored().length)throw Error('请先导出本机待上传的对局，再恢复连接');
+      await last;identity=data.identity;enabled=true;checkbox.checked=true;localStorage.setItem(KEY,identity);localStorage.setItem(PREF,'1');await startConfigure();
+    }catch(e){show(e.message);}finally{fileInput.value='';}
   };
   async function participant(){if(!enabled)return null;await last;return identity||null;}
   function active(record,over=false){live.classList.toggle('hidden',!record);if(record&&!over)live.textContent='本局参与训练 · 完整结束后保存为样本。';}
