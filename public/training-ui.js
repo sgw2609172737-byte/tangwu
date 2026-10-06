@@ -5,7 +5,7 @@
   let enabled=false,identity='',last=Promise.resolve(),count=0;
   try {enabled=localStorage.getItem(PREF)==='1';identity=localStorage.getItem(KEY)||'';}catch(_){}
   const panel=document.createElement('details');panel.className='training-panel';
-  panel.innerHTML='<summary>与 AI 一起进步</summary><label class="training-choice"><input id="training-enabled" type="checkbox">让我的人机对局参与训练</label><p class="training-help">记录完整的游戏行动与胜负，不记录昵称。训练按批次进行，新模型通过验证后才会上线；认输和中断不计入样本。</p><p id="training-status" role="status"></p><div class="training-actions"><button id="training-export" class="ghost">导出对局</button><button id="training-connect" class="ghost">连接本机训练</button></div><p class="training-help">云端保留最近 50 局；训练身份保存在当前浏览器。关闭开关会停止接收新记录。</p>';
+  panel.innerHTML='<summary>与 AI 一起进步</summary><label class="training-choice"><input id="training-enabled" type="checkbox">让我的人机对局参与训练</label><p class="training-help">记录完整的游戏行动与胜负，不记录昵称。训练按批次进行，新模型通过验证后才会上线；认输和中断不计入样本。</p><p id="training-status" role="status"></p><div class="training-actions"><button id="training-export" class="ghost">导出对局</button><button id="training-connect" class="ghost">连接本机训练</button><button id="training-copy" class="ghost">复制连接</button></div><p class="training-help">云端保留最近 50 局；训练身份保存在当前浏览器。关闭开关会停止接收新记录。</p>';
   const anchor=document.querySelector('#panel-ai')||document.querySelector('#btn-start')?.parentElement;
   if(!anchor)return;anchor.append(panel);
   const checkbox=panel.querySelector('#training-enabled'),status=panel.querySelector('#training-status');checkbox.checked=enabled;
@@ -48,7 +48,12 @@
   };
   panel.querySelector('#training-connect').onclick=async()=>{
     await last;if(!online||!enabled||!identity){show('请先在网页版开启参与训练。');return;}
-    download({version:1,site:location.origin,identity},'tangwu-training-link.json');show('连接文件已下载，可供本机训练脚本同步你的记录。请妥善保管。');
+    download({version:1,site:location.origin,identity},'tangwu-training-link.json');show('正在下载连接文件；若未保存，可用“复制连接”。连接只用于本机训练。');
+  };
+  panel.querySelector('#training-copy').onclick=async()=>{
+    await last;if(!online||!enabled||!identity){show('请先在网页版开启参与训练。');return;}
+    try{await navigator.clipboard.writeText(JSON.stringify({version:1,site:location.origin,identity}));show('连接已复制，可保存为本机训练连接文件。请勿公开分享。');}
+    catch(_){show('浏览器未允许复制，请使用连接文件下载。');}
   };
   async function participant(){if(!enabled)return null;await last;return identity||null;}
   function active(record,over=false){live.classList.toggle('hidden',!record);if(record&&!over)live.textContent='本局参与训练 · 完整结束后保存为样本。';}

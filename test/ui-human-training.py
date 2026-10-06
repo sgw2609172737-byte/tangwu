@@ -6,7 +6,7 @@ with tempfile.TemporaryDirectory(prefix='tw-human-ui-') as temp:
     env=dict(os.environ,TANGWU_TRAINING_FILE=str(pathlib.Path(temp)/'human.json'),TANGWU_RANK_FILE=str(pathlib.Path(temp)/'rank.json'))
     server=subprocess.Popen(['node','-e',"const {server}=require('./server');server.listen(0,'127.0.0.1',()=>console.log(server.address().port))"],cwd=root,env=env,stdout=subprocess.PIPE,text=True,creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
     try:
-        base='http://127.0.0.1:'+server.stdout.readline().strip()
+        base=os.environ.get('TANGWU_TEST_BASE_URL') or 'http://127.0.0.1:'+server.stdout.readline().strip()
         with sync_playwright() as p:
             browser=p.chromium.launch(headless=True,executable_path='C:/Program Files/Google/Chrome/Application/chrome.exe')
             page=browser.new_page(viewport={'width':1440,'height':1000});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
