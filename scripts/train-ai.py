@@ -1,5 +1,5 @@
 """Train a small policy/value net using the authoritative JS engine, then run fresh paired games."""
-import argparse, hashlib, json, pathlib, subprocess, sys, time
+import argparse, hashlib, json, pathlib, shutil, subprocess, sys, time
 import numpy as np
 import torch
 from torch import nn
@@ -29,19 +29,23 @@ class PolicyValue(nn.Module):
         return self.policy(h),torch.tanh(self.value(h)).squeeze(-1)
 
 def load_data(directories,limit=60000):
-    total=sum(read_json(d/'summary.json')['samples'] for d in directories)
-    count=min(total,limit)
+    summaries=[read_json(d/'summary.json') for d in directories]
+    is_human=[s.get('mode')=='human-reanalysis' for s in summaries]
+    human_total=sum(s['samples'] for s,h in zip(summaries,is_human) if h)
+    generated_total=sum(s['samples'] for s,h in zip(summaries,is_human) if not h)
+    human_keep=min(human_total,limit//5);generated_keep=min(generated_total,limit-human_keep)
+    count=human_keep+generated_keep
     schema=read_json(directories[0]/'summary.json');inputs=schema['features'];actions=len(schema['actions'])
     x=np.empty((count,inputs),dtype=np.float32);pi=np.empty((count,actions),dtype=np.float32)
     mask=np.zeros((count,actions),dtype=np.bool_);z=np.empty(count,dtype=np.float32);weight=np.empty(count,dtype=np.float32)
-    validation=np.empty(count,dtype=np.bool_);index=0;skip=max(0,total-limit)
-    for directory in directories:
+    validation=np.empty(count,dtype=np.bool_);index=0;skip={True:human_total-human_keep,False:generated_total-generated_keep}
+    for directory,human in zip(directories,is_human):
         for file in sorted(directory.glob('games-*.jsonl')):
             with file.open(encoding='utf-8') as stream:
                 for line in stream:
                     game=json.loads(line)
                     for sample in game['samples']:
-                        if skip:skip-=1;continue
+                        if skip[human]:skip[human]-=1;continue
                         x[index]=sample['x'];pi[index]=sample['pi'];mask[index,sample['mask']]=True
                         z[index]=sample['z'];weight[index]=sample['valueWeight'];validation[index]=game['seed']%10==0
                         index+=1
@@ -49,7 +53,7 @@ def load_data(directories,limit=60000):
     if not np.isfinite(x).all() or not np.isfinite(pi).all():raise RuntimeError('Nonfinite training data')
     if np.any((pi>0)&~mask) or not np.allclose(pi.sum(axis=1),1,atol=1e-5):raise RuntimeError('Invalid policy target/mask')
     tensors=[torch.from_numpy(a) for a in [x,pi,mask,z,weight]]
-    return tensors,np.flatnonzero(~validation),np.flatnonzero(validation),schema
+    return tensors,np.flatnonzero(~validation),np.flatnonzero(validation),{**schema,'humanSamplesKept':human_keep}
 
 def metrics(model,data,indices,device):
     policy_loss=value_loss=correct=value_count=count=0
@@ -112,9 +116,17 @@ def main():
     parser.add_argument('--batch',type=int,default=512);parser.add_argument('--width',type=int,default=128)
     parser.add_argument('--eval-pairs',type=int,default=8);parser.add_argument('--eval-budget',type=int,default=50)
     parser.add_argument('--seed',type=int,default=12000);parser.add_argument('--resume',action='store_true')
+    parser.add_argument('--human-link',default='data/training-link.json');parser.add_argument('--human-data',default='data/human-training')
     args=parser.parse_args();out=(ROOT/args.out).resolve();out.mkdir(parents=True,exist_ok=True)
     if (out/'report.json').exists() and not args.resume:raise RuntimeError('Run exists; choose a new --out or --resume')
     if not torch.cuda.is_available():raise RuntimeError('CUDA GPU is required for this run; no silent CPU fallback')
+    link=(ROOT/args.human_link).resolve()
+    if link.exists():run_node('sync-human.js','--link',link,'--out',(ROOT/args.human_data).resolve())
+    human=(ROOT/args.human_data).resolve();human_snapshot=None
+    if (human/'summary.json').exists() and read_json(human/'summary.json')['games']>0:
+        digest=hashlib.sha256((human/'games-human.jsonl').read_bytes()).hexdigest()[:16]
+        human_snapshot=out/('human-'+digest);human_snapshot.mkdir(exist_ok=True)
+        for name in ['summary.json','games-human.jsonl']:shutil.copy2(human/name,human_snapshot/name)
     torch.manual_seed(args.seed);torch.set_num_threads(2);device=torch.device('cuda')
     report=read_json(out/'report.json') if args.resume and (out/'report.json').exists() else {'phase':'starting','iterations':[], 'config':vars(args),'device':torch.cuda.get_device_name(0),'torch':torch.__version__,'cuda':torch.version.cuda,'startedUTC':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime())}
     if args.resume:
@@ -136,11 +148,13 @@ def main():
             if not (directory/'summary.json').exists() or read_json(directory/'summary.json')['finished']!=args.selfplay_games:
                 run_node('collect-ai.js','--mode','selfplay','--model',out/f'generation-{generation-1}.json','--games',args.selfplay_games,'--workers',args.workers,'--simulations',args.simulations,'--nodes',args.teacher_nodes,'--out',directory,'--seed',args.seed+generation*10000)
         directories=[warm]+[out/f'selfplay-{n}' for n in range(1,generation+1)]
+        if human_snapshot:directories.append(human_snapshot)
         data,train_ids,valid_ids,schema=load_data(directories)
         status(f'train generation {generation}');torch.cuda.reset_peak_memory_stats()
         history=train(model,optimizer,data,train_ids,valid_ids,device,args.epochs,args.batch,args.seed+generation,out/f'learner-{generation}.jsonl')
         training={'games':sum(read_json(d/'summary.json')['games'] for d in directories),'completedGames':sum(read_json(d/'summary.json')['completed'] for d in directories),
-                  'seedRanges':[[read_json(d/'summary.json')['seed'],read_json(d/'summary.json')['seed']+read_json(d/'summary.json')['games']-1] for d in directories],
+                  'seedRanges':[r for d in directories for r in read_json(d/'summary.json').get('seedRanges',[[read_json(d/'summary.json')['seed'],read_json(d/'summary.json')['seed']+read_json(d/'summary.json')['games']-1]])],
+                  'humanGames':read_json(human_snapshot/'summary.json')['games'] if human_snapshot else 0,'humanSamples':schema['humanSamplesKept'],
                   'samples':len(train_ids)+len(valid_ids),'trainSamples':len(train_ids),'validationSamples':len(valid_ids),'bestValidation':min(history,key=lambda h:h['policyLoss']+h['valueMSE']),
                   'cudaPeakAllocatedMB':torch.cuda.max_memory_allocated()/1048576}
         artifact=out/f'generation-{generation}.json';export_model(model,schema,artifact,generation,training,args.seed)

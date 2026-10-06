@@ -5,14 +5,14 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
 fs.mkdirSync(dist, { recursive:true });
-for (const name of ['local.html','artbook.html','rules.html','ui.js','local.js','style.css','home.css','refinement.css','ranked.css','rank-ui.js','home.js','battle-fx.js','ai-worker.js','assets','favicon.svg']) {
+for (const name of ['local.html','artbook.html','rules.html','ui.js','local.js','style.css','home.css','refinement.css','ranked.css','rank-ui.js','training-ui.js','training.css','home.js','battle-fx.js','ai-worker.js','assets','favicon.svg']) {
   const source = path.join(root, 'public', name);
   if (fs.existsSync(source)) fs.cpSync(source, path.join(dist, name), { recursive:true });
 }
-for (const name of ['skills.js','engine.js','ai.js','ranked.js','learning.js','neural-model.js']) fs.copyFileSync(path.join(root, name), path.join(dist, name));
+for (const name of ['skills.js','engine.js','ai.js','ranked.js','learning.js','neural-model.js','replay.js']) fs.copyFileSync(path.join(root, name), path.join(dist, name));
 for (const name of ['local.html','artbook.html']) {
   const file = path.join(dist, name);
-  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/src="\.\.\/(skills|engine|ai|ranked|learning|neural-model)\.js"/g, 'src="$1.js"'));
+  fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace(/src="\.\.\/(skills|engine|ai|ranked|learning|neural-model|replay)\.js"/g, 'src="$1.js"'));
 }
 const worker=path.join(dist,'ai-worker.js');
 fs.writeFileSync(worker,fs.readFileSync(worker,'utf8').replaceAll("'../","'./"));

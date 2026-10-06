@@ -109,7 +109,7 @@ async function doCreate() {
 async function doCreateAI() {
   const name = $('#name-input').value.trim();
   if (!name) { $('#lobby-err').textContent = '请输入昵称'; return; }
-  try { setMe(await api('/api/hello', { name, ai: true, difficulty: $('#ai-diff').value })); }
+  try { setMe(await api('/api/hello', { name, ai: true, difficulty: $('#ai-diff').value,trainingIdentity:await window.TWTraining?.participant() })); }
   catch (e) { $('#lobby-err').textContent = e.message; }
 }
 async function doJoin() {
@@ -286,6 +286,7 @@ function renderPlayerCard(el, p, label, active) {
 // 只在"有变化"的那次渲染触发动画（避免每次轮询都闪）
 let _lastLogLen = 0;
 function renderGame() {
+  window.TWTraining?.room(state);
   const changed = _lastLogLen !== state.log.length;
   _lastLogLen = state.log.length;
   const gameEl = $('#game');
@@ -449,6 +450,7 @@ $('#btn-create').onclick = doCreate;
 $('#btn-create-ai').onclick = doCreateAI;
 $('#btn-join').onclick = doJoin;
 $('#btn-leave').onclick = doLeave;
+$('#btn-result-menu').onclick = doLeave;
 $('#btn-rules').onclick = () => $('#rules-modal').classList.remove('hidden');
 $('#btn-rules-close').onclick = () => $('#rules-modal').classList.add('hidden');
 $('#rules-modal').onclick = (e) => { if (e.target === $('#rules-modal')) $('#rules-modal').classList.add('hidden'); };

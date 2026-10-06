@@ -35,6 +35,8 @@ function syncLocalMode() {
 
 let cfg = { mode: 'pve', diff: 'normal' };
 let G = null;
+let trainingReplay=null;
+const trainingSent=new Set();
 let aiTimer = null;
 let toastTimer = null;
 let spectatorPaused = false, spectatorSpeed = 1;
@@ -71,6 +73,7 @@ function backToMenu() {
   TW_FX.reset();
   cancelAI();
   G = null;
+  trainingReplay=null;window.TWTraining?.active(null);
   $('#game').classList.add('hidden');
   $('#ban').classList.add('hidden');
   $('#btn-back').classList.add('hidden');
@@ -107,6 +110,7 @@ function startGameLocal() {
   $('#menu').classList.add('hidden');
   $('#btn-back').classList.remove('hidden');
   G = TW.createGame(names());
+  trainingReplay=null;
   G.phase = 'banning';
   _prevHp[0] = _prevHp[1] = -1;
   $('#game').classList.add('hidden');
@@ -156,6 +160,7 @@ function renderBan() {
 
 function afterBan() {
   if (G.phase !== 'playing') return;
+  if(isHumanAI() && window.TWTraining?.enabled()) trainingReplay=window.__TWReplay.create(G,cfg.diff);
   $('#ban').classList.add('hidden');
   $('#game').classList.remove('hidden');
   render();
@@ -340,10 +345,8 @@ function clickSkill(skillIdx) {
 function doAction(a) {
   if (!G || G.over) return;
   if (window.TW_SFX) TW_SFX.click();
-  let r;
-  if (a.type === 'add') r = TW.addHand(G, a.choice);
-  else if (a.type === 'act') r = TW.actSkill(G, a.skillIdx, { buffIdx: a.buffIdx });
-  else r = TW.passTurn(G);
+  if(!window.TWTraining?.enabled()) trainingReplay=null;
+  const r=window.__TWReplay.perform(G,a,trainingReplay);
   if (r && r.err) { toast(r.err); return; }
   render();
   scheduleAI();
@@ -390,9 +393,15 @@ function scheduleAI() {
 }
 
 function renderResult() {
+  window.TWTraining?.active(trainingReplay,G.over);
   const modal = $('#result-modal');
   modal.classList.toggle('hidden', !G.over);
   if (!G.over) return;
+  if(trainingReplay && !trainingSent.has(trainingReplay.id)) {
+    trainingSent.add(trainingReplay.id);
+    try {const record=window.__TWReplay.clean(window.__TWReplay.finish(trainingReplay,G));window.TWTraining?.submit(record);}
+    catch(_) {trainingReplay=null;window.TWTraining?.active(null);}
+  }
   $('#result-title').textContent = G.result === 'draw' ? '🤝 平局！' : `🎉 ${G.players[G.winner].name} 获胜！`;
   $('#result-sub').textContent = G.result === 'draw' ? '本局平局' : '';
   if(cfg.mode==='ranked') {
@@ -458,7 +467,7 @@ function saveMatch() {
   const status = matchTools.querySelector('.save-status');
   try {
     if (G.over) { localStorage.removeItem(SAVE_KEY); status.textContent = '对局结束'; return; }
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ version:1, cfg, game:TW.serializeGame(G) }));
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ version:1, cfg, game:TW.serializeGame(G),trainingReplay }));
     status.textContent = '进度已保存';
   } catch (_) { status.textContent = '无法保存：浏览器存储不可用'; }
 }
@@ -467,7 +476,7 @@ function updateMatchTools() {
   $('#local-rank-match').classList.toggle('hidden',!ranked);
   if(ranked) {
     $('#local-rank-match').innerHTML=`<span>人机排位 · ${Rank.progress(readRank()).name} · 对手 ${cfg.rankMatch.opponent.rating} 分</span><button id="btn-local-resign" class="ghost" ${G.over?'disabled':''}>认输并结算</button>`;
-    $('#btn-local-resign').onclick=()=>{cancelAI();G.over=true;G.phase='over';G.step='over';G.winner=1;G.result='win';G.log.push('你主动认输');render();};
+    $('#btn-local-resign').onclick=()=>{cancelAI();trainingReplay=null;G.over=true;G.phase='over';G.step='over';G.winner=1;G.result='win';G.log.push('你主动认输');render();};
   }
   const watching = cfg.mode === 'ai' && !G.over;
   $('#btn-spectate-pause').classList.toggle('hidden', !watching);
@@ -479,6 +488,7 @@ resumeButton.onclick = () => {
   const saved = readSave();
   if (!saved) { refreshResume(); toast('存档不可用，请开始新对局'); return; }
   cancelAI(); TW_FX.reset(); cfg = saved.cfg; G = saved.game;
+  trainingReplay=window.TWTraining?.enabled()?saved.trainingReplay || null:null;
   localRankResult=null;
   spectatorPaused = cfg.mode === 'ai'; _prevHp[0] = _prevHp[1] = -1; _lastLogLen = 0;
   setOn('#mode-seg', document.querySelector(`[data-mode="${cfg.mode}"]`));

@@ -11,6 +11,8 @@ const { runAI } = require('./lib/ai-player');
 const AI = require('./ai');
 const {createService,diskStore}=require('./lib/ranked-service');
 const rankedService=createService(diskStore());
+const Replay=require('./replay'),Training=require('./lib/training-service');
+const trainingService=Training.createService(Training.diskStore());
 
 const PORT = Number(process.env.PORT || 8800);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -51,6 +53,7 @@ function stateFor(room, youIdx) {
   return {
     roomCode: room.code,
     ai: !!room.ai,
+    training:{enabled:!!room.trainingOwner,status:room.trainingStatus || (room.trainingReplay?'recording':'next-game')},
     connected: room.players.map((p) => !!p.sse),
     rematch: room.rematch.slice(),
     ...publicState(room.game, youIdx),
@@ -75,7 +78,7 @@ function json(res, data, code = 200) {
 function readBody(req, res, cb) {
   let data = '';
   req.on('data', (c) => { data += c; if (data.length > 1e5) req.destroy(); });
-  req.on('end', () => { let body = {}; try { body = JSON.parse(data || '{}'); } catch (e) { /* ignore */ } cb(body); });
+  req.on('end', () => { let body = {}; try { body = JSON.parse(data || '{}'); } catch (e) { /* ignore */ } Promise.resolve(cb(body)).catch(e=>json(res,{ok:false,err:e.message},500)); });
 }
 
 // ---------- 接口 ----------
@@ -95,6 +98,7 @@ function handleHello(req, res, body) {
   // 人机对战：AI 为 1 号，创建进入 ban 阶段（人类先 ban，AI 随后自动 ban）
   if (body.ai && !roomCode) {
     room.ai = true;
+    room.trainingOwner=Training.owner(body.trainingIdentity);
     room.difficulty = ['easy', 'normal', 'hard', 'expert', 'learned'].includes(body.difficulty) ? body.difficulty : 'normal';
     room.players[1].name = 'AI';
     room.game.players[0].name = name;
@@ -122,17 +126,19 @@ function handleHello(req, res, body) {
   json(res, { ok: true, roomCode: room.code, playerIdx: idx, token: newToken, name });
 }
 
-function handleAction(req, res, body) {
+async function handleAction(req, res, body) {
   const t = body.token && tokenMap.get(String(body.token));
   if (!t) return json(res, { ok: false, err: '无效令牌' }, 403);
   const room = t.room, g = room.game, idx = t.idx;
   // 再来一局：任何时候都可发起（对局结束后）
   if (body.type === 'rematch') {
     if (room.ai) {
+      await trainingService.flush(room);
       // AI 房：AI 自动同意，立即重开（重新进入 ban 阶段）
       const name = room.players[0].name;
       room.game = createGame([name, 'AI']);
       room.game.phase = 'banning';
+      room.trainingReplay=null;room.trainingSubmitted=false;room.trainingStatus=null;
       broadcast(room);
       return json(res, { ok: true });
     }
@@ -154,7 +160,11 @@ function handleAction(req, res, body) {
     if (room.ai && g.phase === 'banning' && !g.banPicks[1]) {
       submitBan(g, 1, AI.chooseBan(g, 1, room.difficulty));
     }
-    if (g.phase === 'playing' && room.ai) runAI(room); // AI 若先手自动走完
+    if (g.phase === 'playing' && room.ai) {
+      if(room.trainingOwner && !room.trainingReplay) room.trainingReplay=Replay.create(g,room.difficulty);
+      runAI(room);
+    }
+    await trainingService.flush(room);
     broadcast(room);
     return json(res, { ok: true });
   }
@@ -162,13 +172,14 @@ function handleAction(req, res, body) {
   if (idx !== actor) return json(res, { ok: false, err: '不是你的操作回合' }, 403);
   let r;
   switch (body.type) {
-    case 'add': r = addHand(g, Number(body.choice)); break;
-    case 'act': r = actSkill(g, Number(body.skillIdx), { buffIdx: body.buffIdx != null ? Number(body.buffIdx) : null }); break;
-    case 'pass': r = passTurn(g); break;
+    case 'add': r = Replay.perform(g,{type:'add',choice:Number(body.choice)},room.trainingReplay); break;
+    case 'act': r = Replay.perform(g,{type:'act',skillIdx:Number(body.skillIdx),buffIdx:body.buffIdx!=null?Number(body.buffIdx):null},room.trainingReplay); break;
+    case 'pass': r = Replay.perform(g,{type:'pass'},room.trainingReplay); break;
     default: return json(res, { ok: false, err: '未知操作' }, 400);
   }
   if (r && r.err) return json(res, { ok: false, err: r.err }, 400);
   if (room.ai) runAI(room); // 人机对战：人类操作后，AI 自动响应
+  await trainingService.flush(room);
   broadcast(room);
   json(res, { ok: true });
 }
@@ -213,7 +224,7 @@ function handleState(req, res, u) {
 function serveStatic(req, res, urlPath) {
   let p = urlPath === '/' ? '/index.html' : urlPath;
   // 本地对战页及 AI Worker 与服务端使用同一套规则代码。
-  const shared = ['/engine.js', '/skills.js', '/ai.js', '/ranked.js', '/learning.js', '/neural-model.js'].includes(p);
+  const shared = ['/engine.js', '/skills.js', '/ai.js', '/ranked.js', '/learning.js', '/neural-model.js','/replay.js'].includes(p);
   const file = shared ? path.join(__dirname, p.slice(1)) : path.normalize(path.join(PUBLIC_DIR, decodeURIComponent(p)));
   if (!shared && !file.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
@@ -225,6 +236,11 @@ function serveStatic(req, res, urlPath) {
 
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://localhost');
+  if (u.pathname === '/api/training') {
+    res.setHeader('Cache-Control','no-store');
+    if(req.method!=='POST')return json(res,{ok:false,err:'方法不允许'},405);
+    return readBody(req,res,b=>trainingService.request(b).then(d=>json(res,d)).catch(e=>json(res,{ok:false,err:e.message},e.code||400)));
+  }
   if (u.pathname === '/api/ranked' && req.method === 'POST') return readBody(req,res,b=>{
     res.setHeader('Cache-Control','no-store');
     rankedService.request(b).then(data=>json(res,data)).catch(e=>json(res,{ok:false,err:e.message},e.code || 500));

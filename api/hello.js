@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const { createGame } = require('../engine');
 const { loadRoom, saveRoom, withRoomLock } = require('../lib/vercel-store');
+const {owner}=require('../lib/training-service');
 
 const CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 
@@ -46,6 +47,7 @@ module.exports = async function handler(req, res) {
       // 人机对战：创建进入 ban 阶段（AI 为 1 号，人类先 ban）
       if (body.ai && !roomCode) {
         room.ai = true;
+        room.trainingOwner=owner(body.trainingIdentity);
         room.difficulty = ['easy', 'normal', 'hard', 'expert', 'learned'].includes(body.difficulty) ? body.difficulty : 'normal';
         room.players[0] = { name, token: crypto.randomBytes(16).toString('hex') };
         room.players[1] = { name: 'AI', token: null };

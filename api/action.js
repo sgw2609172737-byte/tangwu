@@ -4,6 +4,7 @@
 const { createGame, startGame, submitBan, addHand, actSkill, passTurn } = require('../engine');
 const { runAI } = require('../lib/ai-player');
 const AI = require('../ai');
+const Replay=require('../replay');
 const { loadRoom, saveRoom, withRoomLock } = require('../lib/vercel-store');
 
 module.exports = async function handler(req, res) {
@@ -22,10 +23,12 @@ module.exports = async function handler(req, res) {
 
       if (body.type === 'rematch') {
         if (room.ai) {
+          await saveRoom(room); // Preserve pending complete records before starting the next game.
           // AI 房：AI 自动同意，立即重开（重新进入 ban 阶段）
           const name = room.players[0].name;
           room.game = createGame([name, 'AI']);
           room.game.phase = 'banning';
+          room.trainingReplay=null;room.trainingSubmitted=false;room.trainingStatus=null;
           await saveRoom(room);
           return { ok: true };
         }
@@ -47,7 +50,10 @@ module.exports = async function handler(req, res) {
         if (room.ai && g.phase === 'banning' && !g.banPicks[1]) {
           submitBan(g, 1, AI.chooseBan(g, 1, room.difficulty));
         }
-        if (g.phase === 'playing' && room.ai) runAI(room); // AI 若先手自动走完
+        if (g.phase === 'playing' && room.ai) {
+          if(room.trainingOwner && !room.trainingReplay) room.trainingReplay=Replay.create(g,room.difficulty);
+          runAI(room);
+        }
         await saveRoom(room);
         return { ok: true };
       }
@@ -57,9 +63,9 @@ module.exports = async function handler(req, res) {
 
       let r2;
       switch (body.type) {
-        case 'add': r2 = addHand(g, Number(body.choice)); break;
-        case 'act': r2 = actSkill(g, Number(body.skillIdx), { buffIdx: body.buffIdx != null ? Number(body.buffIdx) : null }); break;
-        case 'pass': r2 = passTurn(g); break;
+        case 'add': r2 = Replay.perform(g,{type:'add',choice:Number(body.choice)},room.trainingReplay); break;
+        case 'act': r2 = Replay.perform(g,{type:'act',skillIdx:Number(body.skillIdx),buffIdx:body.buffIdx!=null?Number(body.buffIdx):null},room.trainingReplay); break;
+        case 'pass': r2 = Replay.perform(g,{type:'pass'},room.trainingReplay); break;
         default: throw Object.assign(new Error('未知操作'), { code: 400 });
       }
       if (r2 && r2.err) throw Object.assign(new Error(r2.err), { code: 400 });

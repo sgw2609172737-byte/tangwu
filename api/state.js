@@ -14,6 +14,7 @@ module.exports = async function handler(req, res) {
   res.json({
     roomCode: room.code,
     ai: !!room.ai,
+    training:{enabled:!!room.trainingOwner,status:room.trainingStatus || (room.trainingReplay?'recording':'next-game')},
     connected: room.players.map((p) => !!p.name),
     rematch: room.rematch.slice(),
     ...publicState(room.game, idx),
