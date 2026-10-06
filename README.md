@@ -1,6 +1,6 @@
 # 🖐 唐五 · 联机对战
 
-双人面对面回合制竞技游戏《唐五》的电脑版：**网页即开即玩，支持联机对战**。零依赖（仅需 Node.js），所有规则在服务器端权威结算。
+双人面对面回合制竞技游戏《唐五》的电脑版：**网页即开即玩，支持联机对战**。零依赖（仅需 Node.js），联机规则在服务器端权威结算。
 
 ## 快速开始
 
@@ -16,7 +16,7 @@
 - 相加前预览结果数字、对应技能及费用不足的自动空过提示。技能说明完整显示；本地版增加禁用搜索/费用筛选、数字快捷键、规则弹窗和音效开关。
 - 浏览器打开 `http://localhost:8800/local.html` 可运行本地双人、AI 对战和 AI 观战。AI 在 Web Worker 中计算，返回菜单会取消搜索；双击 `public/local.html` 时若浏览器禁用 Worker，则使用较小计算预算兼容运行。
 - AI 修复尤里控制回合的斩杀归属和连携评分；增加局面缓存、动作排序、重复状态去重，改进假人、持续伤害、反弹与赌命倒计时的评估。
-- 困难本地 AI 单步搜索预算为 700ms，普通为 100ms；服务端整段 AI 回合共用 1400ms 搜索预算（另有状态结算开销）。24 点求解缓存结果并去掉重复排列搜索。
+- 困难本地 AI 单步搜索预算为 700ms，宗师为 1600ms，普通为 100ms；服务端普通/困难整段 AI 回合共用 1400ms、宗师共用 3200ms 预算（另有状态结算开销）。24 点求解缓存结果并去掉重复排列搜索。
 
 ### 规则校正与发育策略
 
@@ -52,6 +52,63 @@ python test/ui-smoke.py  # 浏览器交互；需要 Python Playwright 和 Chrome
 ```
 
 浏览器测试自动开启并关闭本地服务器，截图写入系统临时目录 `tangwu-ui-qa`。可设置 `BROWSER_PATH` 指定浏览器。AI 对战胜率有随机性，小样本结果不代表稳定胜率。
+
+## 排位与宗师 AI（2026-10-06）
+
+- **人机排位**：本地菜单选择「人机排位」。5 局定级；青铜、白银、黄金、铂金、钻石、大师、宗师七个段位；按双方积分与结果更新 Elo。AI 难度随积分提高，战绩和最高分保存在当前浏览器/桌面应用。普通人机、本地双人与观战不计分。
+- **真人排位**：运行 `node server.js`，进入首页「真人排位」。填写昵称并匹配；双方无需分享房间码。先匹配相近积分，等待越久逐步放宽范围。积分、战绩和排行榜由服务器结算；每步限时 90 秒、禁用限时 120 秒，超时/认输记负，双方禁用都超时记平局。刷新恢复当前对局，完成后重新匹配。
+- 两类积分完全独立。本地返回菜单保留排位，可继续；开始另一局会将已开始但未完成的人机排位记负。真人点击「认输并离开」立即结算，直接断线不会抹去当前对局，超时后仍会记负。
+- 自建服务器保存 `data/ranked.json`（不加入 Git），可通过 `TANGWU_RANK_FILE` 指定持久磁盘路径。备份/迁移应包含该文件。Vercel 使用已有 Upstash Redis，在同一事务中保存匹配、对局和积分，结果不会重复计算。没有配置 Redis 时，Vercel 排位入口会显示配置错误。
+- 真人身份是服务器生成的匿名本机密钥，保存在浏览器中；昵称不作为身份，清除浏览器存储后无法找回。当前适合小规模联机，未实现登录账号、跨设备找回或反刷分系统。公开竞技运营需要补上这些能力。
+- **宗师 AI**：存在已通过独立对照测试的模型时使用神经网络引导的 MCTS，并先检查强制连招；模型未通过或无法加载时使用完整回合 alpha-beta 搜索。相加、再次行动和尤里控制都按实际操作者计分。离线 Worker 不可用时用短预算兼容运行，强度相应降低。
+- 已验证一条七步操作的 98K 连携斩杀可穿透无敌、反弹与假人。学习型网络已通过 CUDA 训练，但没有求解唐五全部状态，**不保证全局必胜**。
+- 静态构建 `npm run build:dist` 只包含离线人机排位；真人排位需要 Node 服务器或配好 Redis 的 Vercel 后端。构建不会自动发布现有线上站点。
+
+```sh
+npm test                         # 包含宗师战术和排位结算/匹配回归
+python test/ui-ranked.py          # 两个浏览器身份的真人排位及本地排位完整流程
+npm run benchmark:ai             # 新宗师与 Git 8974dd9 的困难 AI，换边/相同开局与预算
+```
+
+对照赛报告输出 `output/qa/ai-benchmark-<预算>ms.json`。可用 `AI_PAIRS`、`AI_BUDGET`、`AI_BASELINE` 环境变量调整成对开局数、每步毫秒和旧版提交。小样本与短预算不能代表对真人的稳定胜率。
+
+此前搜索增强版同预算 250ms 对照实测：6 组成对开局、12 局，对旧版困难 7 胜、4 负、1 平；全部在 800 步内结束。学习型模型有独立的新报告，不能将这份旧结果视为学习模型成绩。可运行 `node test/ui-electron-ranked.cjs` 重验包内模型、真实 `file://` Worker 连携斩杀与桌面排位积分落盘（需要 Python Playwright 与现有 Electron 打包目录）。
+
+## 本地训练 AI
+
+训练代码已经实际运行，并保留 4 代模型与所有对局数据：192 局搜索教师预热，加上 3 轮各 128 局神经网络引导自我对弈，共 576 局、40,655 条局面样本。选择模型与最终测试分开；优先保留实战表现较好的模型，后代不会自动覆盖。正式使用的模型可能来自更早的一代，因此界面中的训练局数表示该模型实际见过的数据。
+
+当前晋级的是第 1 代（192 局教师预热＋128 局自我对弈，共 320 局、24,955 个样本）。独立换边对照：相同每步 50ms 预算下，对旧搜索宗师 **58 胜、6 负**；相同每步 250ms 预算下 **13 胜、3 负**。这仅说明对当前旧宗师的测试提升，不是对真人或所有规则组合的必胜保证。详见 `models/training-report.md` 和模型内的晋级报告。
+
+- `learning.js`：使用真正的 `engine.js` 生成局面与合法动作；232 个特征、51 个动作编码。包括公平正义的不同增益目标，不读取日志或动画。输入中部分无界数量经过对数缩放与汇总，因此这是近似学习模型。
+- `scripts/collect-ai.js`：固定种子、节点预算的教师对局，以及 MCTS 自我对弈；每 5 局有一局混入搜索教师。未在步数上限前结束的对局不把胜负猜测当作真实标签。
+- `scripts/train-ai.py`：PyTorch CUDA 训练 232→128→128 的策略/价值网络。整局划分训练与验证集，策略使用合法动作掩码，价值目标为真实终局胜负。每代保存权重、Adam 状态、JSON 推理模型、验证指标和汇总；继续训练会从最后一代检查点恢复。
+- `scripts/evaluate-model.js`：新模型与固定的搜索宗师对战，每个开局交换席位，使用相同毫秒预算，包含固定和随机禁用组合。正式晋级要求独立短预算测试至少 64 局，以及独立 250ms 测试至少 16 局；未过门槛的候选只能放入实验入口，保留当前正式模型。
+- `models/tangwu-pv.json` 与 `neural-model.js`：同一模型的 JSON 和浏览器/Node 版本。运行游戏不需要 PyTorch、GPU、网络或外部 API，浏览器 Worker 使用普通 JavaScript 推理。训练脚本才需要 Python、PyTorch 与 CUDA。
+
+在项目目录执行 PowerShell：
+
+```powershell
+# 首次使用新输出目录训练；已有输出不会静默覆盖
+.\train-ai.ps1 -Output output/training/my-run -WarmGames 192 -Rounds 3 -SelfplayGames 128
+
+# 延续本次训练，增加到 6 轮；更长训练不保证更强
+.\train-ai.ps1 -Output output/training/2026-10-06/run1 -Resume -Rounds 6
+```
+
+启动器优先使用 `TANGWU_TORCH_PYTHON` 指定的 Python；本机可复用 `D:\Comfy\Qwen-Standalone\ComfyUI\.venv\Scripts\python.exe` 的 CUDA PyTorch，使用期间不修改该环境。其他电脑应安装对应 CUDA 版 PyTorch，并用 `-TorchPython` 指向 Python 路径。训练默认使用两个数据生成线程，数据、日志、检查点都留在指定输出目录。
+
+训练完成会生成 `candidate.json`，不会仅凭训练损失降低就自动升级。晋级与发布流程：
+
+```powershell
+node scripts/evaluate-model.js --model output/training/my-run/candidate.json --out output/training/my-run/promotion-50ms.json --pairs 32 --budget 50 --workers 2 --seed 910000
+node scripts/evaluate-model.js --model output/training/my-run/candidate.json --out output/training/my-run/promotion-250ms.json --pairs 8 --budget 250 --workers 2 --seed 920000
+node scripts/publish-model.js --model output/training/my-run/candidate.json --promotion output/training/my-run/promotion-50ms.json --long output/training/my-run/promotion-250ms.json
+node scripts/build-static.js
+npm run build:dist
+```
+
+模型发布校验规则哈希、两份对照报告的模型哈希、独立种子及晋级成绩，错误模型不能套用其他模型的报告。规则改动后应重新训练并验证。继续训练的报告还应使用新的验证种子，避免反复调参污染同一测试集。
 
 ## 怎么和朋友联机
 
@@ -207,6 +264,6 @@ node test/live-poll.js     # 活体测试（轮询版，模拟新版客户端协
 ## 本地版 / 人机对战 / 打包 exe
 
 - **本地单机版**：双击 `启动本地版.bat`（Edge 应用模式）打开 `public/local.html`，含人机对战（三档 AI）、本地双人、AI 观战；纯离线，不依赖服务器、不联网。
-- **AI**：`ai.js`（仓库根，Node+浏览器双环境）纯规则启发式 + 1 层搜索，**不接任何大模型/API**；`lib/ai-player.js` 在服务端驱动人机对战（自建 `server.js` 与 Vercel `api/*` 共用）。
+- **AI**：`ai.js`（仓库根，Node+浏览器双环境）局面评估与有预算的迭代加深搜索，困难/宗师增加完整回合及强制连招搜索，**不接任何大模型/API**；`lib/ai-player.js` 在服务端驱动人机对战（自建 `server.js` 与 Vercel `api/*` 共用）。
 - **网页版人机对战**：大厅选难度 →「🤖 对战 AI」（AI 在服务端权威结算）。
 - **打包单文件 exe**：`node tools/build-electron.js` 组装应用目录 → 在其中 `npm install && npm run dist`（走 npmmirror 镜像）→ 产出 `dist/TangWu.exe`（Electron 便携版单文件，约 100MB，Win10/11 双击即玩，无需 Edge/.NET/联网）。

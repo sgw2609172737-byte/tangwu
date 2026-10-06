@@ -84,6 +84,10 @@
       });
     });
     if(tabs.length && new URLSearchParams(location.search).has('room'))selectTab(tabs.find(t=>t.dataset.entry==='join'));
+    else {
+      const requested=tabs.find(t=>t.dataset.entry===new URLSearchParams(location.search).get('entry'));
+      if(requested) requested.click();
+    }
     syncMotion();
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();

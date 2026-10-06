@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="home.css">
 
 <link rel="stylesheet" href="refinement.css">
+<link rel="stylesheet" href="ranked.css">
 </head>
 <body>
 <header>
@@ -34,10 +35,12 @@
       <button data-mode="pve" class="on" aria-pressed="true">人机对战<small>挑战电脑</small></button>
       <button data-mode="pvp" aria-pressed="false">本地双人<small>同屏轮流</small></button>
       <button data-mode="ai" aria-pressed="false">AI 观战<small>观察博弈</small></button>
+      <button data-mode="ranked" aria-pressed="false">人机排位<small>冲击段位</small></button>
     </div><div id="diff-row"><span>AI 难度</span><div class="seg" id="diff-seg">
-      <button data-diff="easy" aria-pressed="false">简单</button><button data-diff="normal" class="on" aria-pressed="true">普通</button><button data-diff="hard" aria-pressed="false">困难</button>
+      <button data-diff="easy" aria-pressed="false">简单</button><button data-diff="normal" class="on" aria-pressed="true">普通</button><button data-diff="hard" aria-pressed="false">困难</button><button data-diff="expert" aria-pressed="false">宗师</button><button data-diff="learned" aria-pressed="false">训练 AI</button>
     </div><p class="difficulty-note" id="difficulty-note">会权衡攻守并预判后续行动，适合熟悉规则后挑战。</p></div>
-    <button id="btn-start" class="primary launch-action">开始对局 →</button><button id="btn-online" class="ghost">邀请朋友 · 线上联机</button></div><details class="quick-rules"><summary>第一次玩？三步开始</summary><p>① 双方各禁用一个技能。<br>② 用你的技能手，加上对方费用手的个位或技能手，结果取个位。<br>③ 选择对应技能并支付费用，也可以空过。将对手生命降至 0 获胜；小心假人复活和反弹。</p></details></div>
+    <div id="local-rank" class="rank-panel hidden"></div>
+    <button id="btn-start" class="primary launch-action">开始对局 →</button><button id="btn-online" class="ghost">真人排位 / 邀请朋友 · 线上联机</button></div><details class="quick-rules"><summary>第一次玩？三步开始</summary><p>① 双方各禁用一个技能。<br>② 用你的技能手，加上对方费用手的个位或技能手，结果取个位。<br>③ 选择对应技能并支付费用，也可以空过。将对手生命降至 0 获胜；小心假人复活和反弹。</p></details></div>
   </section>
 
   <!-- 盲ban -->
@@ -52,6 +55,7 @@
   <section id="game" class="hidden">
     <div class="game-left">
       <div id="turn-banner" class="banner"></div>
+      <div id="local-rank-match" class="rank-match-info hidden"></div>
       <section id="ban-summary" class="ban-summary" aria-label="本局禁用技能" aria-live="polite"></section>
       <div class="player-card" id="p0-card"></div>
       <div class="player-card" id="p1-card"></div>
@@ -83,6 +87,10 @@
 <script src="../skills.js"></script>
 <script src="../engine.js"></script>
 <script src="../ai.js"></script>
+<script src="../learning.js"></script>
+<script src="../neural-model.js"></script>
+<script src="../ranked.js"></script>
+<script src="rank-ui.js"></script>
 <script src="ui.js"></script>
 <script src="battle-fx.js"></script>
 <script src="home.js"></script>

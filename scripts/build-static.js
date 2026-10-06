@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '..');
-for (const name of ['skills.js', 'engine.js', 'ai.js']) {
+for (const name of ['skills.js', 'engine.js', 'ai.js', 'ranked.js', 'learning.js', 'neural-model.js']) {
   fs.copyFileSync(path.join(root, name), path.join(root, 'public', name));
   console.log(`Published shared script: ${name}`);
 }

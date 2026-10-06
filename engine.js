@@ -12,11 +12,13 @@ const STALEMATE_TURNS = 24; // 连续这么多回合双方都未受伤 → 按�
 
 // ---------- 基础工具 ----------
 function log(g, msg) {
+  if (g.searchOnly) return;
   g.log.push(msg);
   if (g.log.length > 400) g.log.splice(0, g.log.length - 400);
 }
 // 仅供展示的有序事件；不可作为规则或 AI 评分依据。不可变更新避免搜索副本写入实局。
 function visualEvent(g, event) {
+  if (g.searchOnly) return;
   g.visualSeq = (g.visualSeq || 0) + 1;
   g.visualEvents = [...(g.visualEvents || []), { ...event, seq: g.visualSeq }].slice(-24);
 }

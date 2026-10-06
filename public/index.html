@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="home.css">
 <link rel="stylesheet" href="refinement.css">
+<link rel="stylesheet" href="ranked.css">
 </head>
 <body>
 <header>
@@ -33,10 +34,11 @@
         <button id="entry-ai" role="tab" aria-selected="true" aria-controls="panel-ai" data-entry="ai" class="on">人机挑战</button>
         <button id="entry-host" role="tab" aria-selected="false" aria-controls="panel-host" data-entry="host" tabindex="-1">创建房间</button>
         <button id="entry-join" role="tab" aria-selected="false" aria-controls="panel-join" data-entry="join" tabindex="-1">加入房间</button>
+        <button id="entry-rank" role="tab" aria-selected="false" aria-controls="panel-rank" data-entry="rank" tabindex="-1">真人排位</button>
       </div>
       <label class="field-label" for="name-input">你的昵称</label><input id="name-input" placeholder="让对手记住你的名字" maxlength="12" autocomplete="nickname">
       <div id="panel-ai" class="home-entry-panel" role="tabpanel" aria-labelledby="entry-ai">
-        <label class="field-label" for="ai-diff">选择难度</label><select id="ai-diff"><option value="easy">简单 · 熟悉规则</option><option value="normal" selected>普通 · 攻守兼顾</option><option value="hard">困难 · 深入预判</option></select>
+        <label class="field-label" for="ai-diff">选择难度</label><select id="ai-diff"><option value="easy">简单 · 熟悉规则</option><option value="normal" selected>普通 · 攻守兼顾</option><option value="hard">困难 · 深入预判</option><option value="expert">宗师 · 完整回合搜索</option><option value="learned">训练 AI · 学习与搜索</option></select>
         <p class="entry-description">独立思考，步步较量。先从一局开始。</p><button id="btn-create-ai" class="primary launch-action">开始挑战 <span aria-hidden="true">→</span></button>
       </div>
       <div id="panel-host" class="home-entry-panel hidden" role="tabpanel" aria-labelledby="entry-host">
@@ -48,6 +50,14 @@
         <p class="entry-description">输入房间码，就能坐到朋友的对面。</p><button id="btn-join" class="primary launch-action">进入房间 <span aria-hidden="true">→</span></button>
       </div>
       <div id="lobby-err" class="err" role="alert"></div>
+      <div id="panel-rank" class="home-entry-panel hidden" role="tabpanel" aria-labelledby="entry-rank">
+        <div id="online-rank-profile" class="rank-panel"><p class="rank-policy">加载排位档案…</p></div>
+        <button id="btn-rank-queue" class="primary launch-action">开始匹配 →</button>
+        <button id="btn-rank-cancel" class="ghost hidden">取消匹配</button>
+        <p id="rank-queue-status" class="rank-status" role="status"></p>
+        <p class="rank-policy">真人积分由服务器结算，与人机段位分开。每步限时 90 秒，禁用限时 120 秒；离开对局记负，断线可重连。排位身份保存在当前浏览器，清除存储后无法恢复。</p>
+        <details class="rank-board"><summary>服务器排行榜</summary><div id="rank-leaderboard">完成对局后进入榜单。</div></details>
+      </div>
       <a class="offline-entry" href="local.html">本地双人 / AI 观战 <span aria-hidden="true">↗</span></a>
       <details class="quick-rules"><summary>初次见面，了解玩法</summary><p>双方先各禁用一个技能，再用技能手与对方一只手相加、取个位，选择对应技能并支付费用。先手 20 血、后手 21 血；小心连携、假人和反弹。</p></details>
     </div>
@@ -74,6 +84,7 @@
   <section id="game" class="hidden">
     <div class="game-left">
       <div id="turn-banner" class="banner"></div>
+      <div id="online-rank-match" class="rank-match-info hidden"></div>
       <section id="ban-summary" class="ban-summary" aria-label="本局禁用技能" aria-live="polite"></section>
       <div class="player-card" id="opp-card"></div>
       <div class="player-card" id="me-card"></div>
@@ -110,9 +121,12 @@
 <div id="toast" class="toast hidden"></div>
 
 <script src="skills.js"></script>
+<script src="ranked.js"></script>
+<script src="rank-ui.js"></script>
 <script src="ui.js"></script>
 <script src="battle-fx.js"></script>
 <script src="home.js"></script>
 <script src="app.js"></script>
+<script src="online-rank.js"></script>
 </body>
 </html>

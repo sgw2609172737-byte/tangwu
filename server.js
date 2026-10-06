@@ -9,6 +9,8 @@ const os = require('os');
 const { createGame, startGame, submitBan, addHand, actSkill, passTurn, publicState } = require('./engine');
 const { runAI } = require('./lib/ai-player');
 const AI = require('./ai');
+const {createService,diskStore}=require('./lib/ranked-service');
+const rankedService=createService(diskStore());
 
 const PORT = Number(process.env.PORT || 8800);
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -93,7 +95,7 @@ function handleHello(req, res, body) {
   // 人机对战：AI 为 1 号，创建进入 ban 阶段（人类先 ban，AI 随后自动 ban）
   if (body.ai && !roomCode) {
     room.ai = true;
-    room.difficulty = ['easy', 'normal', 'hard'].includes(body.difficulty) ? body.difficulty : 'normal';
+    room.difficulty = ['easy', 'normal', 'hard', 'expert', 'learned'].includes(body.difficulty) ? body.difficulty : 'normal';
     room.players[1].name = 'AI';
     room.game.players[0].name = name;
     room.game.players[1].name = 'AI';
@@ -211,7 +213,7 @@ function handleState(req, res, u) {
 function serveStatic(req, res, urlPath) {
   let p = urlPath === '/' ? '/index.html' : urlPath;
   // 本地对战页及 AI Worker 与服务端使用同一套规则代码。
-  const shared = ['/engine.js', '/skills.js', '/ai.js'].includes(p);
+  const shared = ['/engine.js', '/skills.js', '/ai.js', '/ranked.js', '/learning.js', '/neural-model.js'].includes(p);
   const file = shared ? path.join(__dirname, p.slice(1)) : path.normalize(path.join(PUBLIC_DIR, decodeURIComponent(p)));
   if (!shared && !file.startsWith(PUBLIC_DIR)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, data) => {
@@ -223,6 +225,10 @@ function serveStatic(req, res, urlPath) {
 
 const server = http.createServer((req, res) => {
   const u = new URL(req.url, 'http://localhost');
+  if (u.pathname === '/api/ranked' && req.method === 'POST') return readBody(req,res,b=>{
+    res.setHeader('Cache-Control','no-store');
+    rankedService.request(b).then(data=>json(res,data)).catch(e=>json(res,{ok:false,err:e.message},e.code || 500));
+  });
   if (u.pathname === '/api/hello' && req.method === 'POST') return readBody(req, res, (b) => handleHello(req, res, b));
   if (u.pathname === '/api/action' && req.method === 'POST') return readBody(req, res, (b) => handleAction(req, res, b));
   if (u.pathname === '/api/stream' && req.method === 'GET') return handleStream(req, res, u.pathname + u.search);

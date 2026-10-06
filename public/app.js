@@ -11,6 +11,7 @@ let toastTimer = null;
 function save() { localStorage.setItem('tangwu_v1', JSON.stringify(me)); }
 
 async function api(path, body) {
+  if(me.ranked && path==='/api/action') {path='/api/ranked';body={...body,op:'action'};}
   const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   let data = {};
   try { data = await res.json(); } catch (e) { /* ignore */ }
@@ -48,7 +49,7 @@ async function send(body) {
 }
 
 function setMe(d) {
-  me = { name: d.name, roomCode: d.roomCode, token: d.token, idx: d.playerIdx };
+  me = { name: d.name, roomCode: d.roomCode, token: d.token, idx: d.playerIdx, ranked:!!d.ranked };
   save();
   connectStream();
 }
@@ -64,7 +65,7 @@ function connectStream() {
   schedulePoll();
 }
 function openSSE() {
-  if (sseBroken || sse || typeof EventSource === 'undefined' || !me.token) return;
+  if (me.ranked || sseBroken || sse || typeof EventSource === 'undefined' || !me.token) return;
   try {
     sse = new EventSource(`/api/stream?room=${encodeURIComponent(me.roomCode)}&token=${encodeURIComponent(me.token)}`);
   } catch (e) { sseBroken = true; return; }
@@ -84,10 +85,15 @@ function schedulePoll() {
 }
 async function poll() {
   if (!me.token) return;
+  const session=me;
   try {
-    const res = await fetch(`/api/state?room=${encodeURIComponent(me.roomCode)}&token=${encodeURIComponent(me.token)}`);
-    if (!res.ok) return;
-    state = await res.json();
+    const res = me.ranked ? await fetch('/api/ranked',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op:'state',room:me.roomCode,token:me.token})}) : await fetch(`/api/state?room=${encodeURIComponent(me.roomCode)}&token=${encodeURIComponent(me.token)}`);
+    if(me!==session) return;
+    if (!res.ok) {
+      if(me.ranked && [403,404].includes(res.status)) {clearSession();toast('排位会话已失效，请重新匹配');}
+      return;
+    }
+    const updated=await res.json();if(me!==session) return;state=updated;
     render();
     schedulePoll();
   } catch (e) { /* 瞬时网络错误，下一轮自动重试 */ }
@@ -114,7 +120,15 @@ async function doJoin() {
   try { setMe(await api('/api/hello', { name, roomCode: code })); }
   catch (e) { $('#lobby-err').textContent = e.message; }
 }
-function doLeave() {
+async function doLeave() {
+  if(me.ranked && (!state || !state.over)) {
+    try {await api('/api/action',{type:'resign',room:me.roomCode,token:me.token});}
+    catch(e) {toast(e.message);return;}
+  }
+  clearSession();
+  window.TW_OnlineRank?.refresh();
+}
+function clearSession() {
   stopPoll();
   me = { name: '', roomCode: '', token: '', idx: -1 };
   save();
@@ -125,7 +139,8 @@ function doLeave() {
 // ---------- 渲染 ----------
 function render() {
   $('#btn-leave').classList.toggle('hidden', !me.token);
-  $('#roominfo').textContent = me.token && state ? `房间 ${state.roomCode}` : '';
+  $('#btn-leave').textContent=me.ranked && !state?.over?'认输并离开':'离开';
+  $('#roominfo').textContent = me.token && state ? `${me.ranked?'真人排位':'房间'} ${state.roomCode}` : '';
 
   if (!me.token) {
     TW_FX.reset();
@@ -137,6 +152,12 @@ function render() {
     return;
   }
   if (!state) return;
+  $('#online-rank-match').classList.toggle('hidden',!state.ranked);
+  if(state.ranked) {
+    const p=state.rankProfiles[me.idx];
+    const seconds=Math.max(0,Math.ceil((state.deadline-Date.now())/1000));
+    $('#online-rank-match').textContent=`真人排位 · ${p.rank.name} · ${p.rating} 分 · 当前行动剩余 ${seconds} 秒`;
+  }
   const inWaiting = state.phase === 'waiting';
   const inBan = state.phase === 'banning';
   $('#lobby').classList.add('hidden');
@@ -152,7 +173,11 @@ function render() {
     $('#invite-link').textContent = link;
     return;
   }
-  if (inBan) { renderBan(); return; }
+  if (inBan) {
+    renderBan();
+    if(state.ranked) $('#ban-sub').textContent+=` 排位禁用剩余 ${Math.max(0,Math.ceil((state.deadline-Date.now())/1000))} 秒。`;
+    return;
+  }
   renderGame();
 }
 
@@ -407,6 +432,13 @@ function renderResult() {
   const myIdx = me.idx;
   $('#result-title').textContent = state.result === 'draw' ? '🤝 平局！' : (state.winner === myIdx ? '🎉 你赢了！' : '💀 你输了');
   $('#result-sub').textContent = state.result === 'draw' ? '本局平局' : `胜者：${state.players[state.winner].name}`;
+  if(state.ranked) {
+    const r=state.ratingResult?.[myIdx];
+    if(r) $('#result-sub').textContent=`${r.reason} · ${r.delta>0?'+':''}${r.delta} 分 · ${r.after} 分 · ${state.rankProfiles[myIdx].rank.name}`;
+    $('#btn-rematch').textContent='重新匹配';$('#btn-rematch').disabled=false;
+    $('#rematch-hint').textContent='本局积分已由服务器结算';return;
+  }
+  $('#btn-rematch').textContent='🔁 再来一局';
   const want = state.rematch[myIdx];
   $('#btn-rematch').disabled = want;
   $('#rematch-hint').textContent = want ? '等待对方确认再来一局…' : (state.rematch[1 - myIdx] ? '对方想再来一局' : '');
@@ -425,7 +457,7 @@ $('#btn-copy').onclick = () => {
   const link = $('#invite-link').textContent;
   navigator.clipboard.writeText(link).then(() => toast('已复制邀请链接'), () => toast('复制失败，请手动复制'));
 };
-$('#btn-rematch').onclick = () => send({ type: 'rematch' });
+$('#btn-rematch').onclick = () => me.ranked?window.TW_OnlineRank.requeue():send({ type: 'rematch' });
 $('#name-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.querySelector('.home-entry-panel:not(.hidden) .primary')?.click(); });
 $('#code-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') doJoin(); });
 
@@ -472,6 +504,7 @@ document.addEventListener('keydown', (e) => {
   const roomFromUrl = (params.get('room') || '').trim().toUpperCase();
   const nameFromUrl = (params.get('name') || '').trim().slice(0, 12);
   if (me.token && me.roomCode) {
+    if(me.ranked && !roomFromUrl) {setMe({...me,playerIdx:me.idx});return;}
     if (!roomFromUrl || me.roomCode === roomFromUrl) {
       try {
         const d = await api('/api/hello', { name: me.name, roomCode: me.roomCode, token: me.token });

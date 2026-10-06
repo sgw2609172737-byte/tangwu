@@ -1,5 +1,5 @@
 'use strict';
-// AI 冒烟测试：三档各跑若干局验证不崩溃、动作合法；并自检"困难是否明显强于普通"
+// AI 冒烟测试：五档各跑若干局验证不崩溃、动作合法；并检查困难对普通的小样本。
 const engine = require('../engine');
 const AI = require('../ai');
 const { runAI } = require('../lib/ai-player');
@@ -26,11 +26,11 @@ function playOne(diffA, diffB, timeMs, maxSteps) {
   return g.over ? g : null;
 }
 
-// 1) 冒烟：三档不崩溃、动作合法
-const diffs = ['easy', 'normal', 'hard'];
+// 1) 冒烟：包括正式学习型宗师与独立训练入口。
+const diffs = ['easy', 'normal', 'hard', 'expert', 'learned'];
 let allOk = true;
 for (const d of diffs) {
-  const n = d === 'hard' ? 8 : 12;
+  const n = ['expert','learned'].includes(d) ? 4 : d === 'hard' ? 8 : 12;
   try {
     let ended = 0;
     for (let i = 0; i < n; i++) if (playOne(d, d, FAST, 800)) ended++;
@@ -47,7 +47,7 @@ try {
   for (let i = 0; i < 20; i++) {
     const g = createGame(['你', 'AI']);
     startGame(g);
-    const room = { game: g, difficulty: diffs[i % 3] };
+    const room = { game: g, difficulty: diffs[i % diffs.length] };
     runAI(room);
     if (g.over) continue;
     if (g.controller >= 0 ? g.controller === 1 : g.turn === 1) throw new Error('runAI 后仍轮到 AI');
@@ -79,4 +79,4 @@ try {
   process.exitCode = 1;
 }
 
-if (allOk) console.log('AI 测试通过：三档不崩溃、动作合法，hard 明显强于 normal');
+if (allOk) console.log('AI 测试通过：五档不崩溃、动作合法，困难对普通的小样本检查通过');

@@ -46,7 +46,7 @@ module.exports = async function handler(req, res) {
       // 人机对战：创建进入 ban 阶段（AI 为 1 号，人类先 ban）
       if (body.ai && !roomCode) {
         room.ai = true;
-        room.difficulty = ['easy', 'normal', 'hard'].includes(body.difficulty) ? body.difficulty : 'normal';
+        room.difficulty = ['easy', 'normal', 'hard', 'expert', 'learned'].includes(body.difficulty) ? body.difficulty : 'normal';
         room.players[0] = { name, token: crypto.randomBytes(16).toString('hex') };
         room.players[1] = { name: 'AI', token: null };
         room.game.players[0].name = name;

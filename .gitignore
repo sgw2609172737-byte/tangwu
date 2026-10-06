@@ -9,4 +9,10 @@ public/debug-hands.html
 /public/skills.js
 /public/engine.js
 /public/ai.js
+/public/ranked.js
+/public/learning.js
+/public/neural-model.js
 /output/qa/
+/data/
+/output/training/
+__pycache__/

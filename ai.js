@@ -7,7 +7,7 @@
   const actorOf = (g) => g.controller >= 0 ? g.controller : g.turn;
   // 搜索不携带历史日志；完整复制可变的嵌套状态，绝不写入真实对局。
   function cloneGame(g) {
-    return { ...g, log: [], chainDigits: new Set(g.chainDigits), banned: [...g.banned], banPicks: [...g.banPicks],
+    return { ...g, searchOnly: true, log: [], visualEvents: [], chainDigits: new Set(g.chainDigits), banned: [...g.banned], banPicks: [...g.banPicks],
       players: g.players.map((p) => ({ ...p, dummy: { ...p.dummy, reserve: [...(p.dummy.reserve || [])] }, yingneng: { ...p.yingneng },
         qibu: { ...p.qibu }, duming: { ...p.duming }, chaofeng: { ...p.chaofeng }, delayed: p.delayed.map((d) => ({ ...d })) })) };
   }
@@ -76,7 +76,7 @@
     const chain = Math.min(3, g.chainCount) * 5 + (g.chainCount >= 3 && g.chainDigits.size >= 2 ? 18 : 0);
     score += (g.turn === aiIdx ? 1 : -1) * chain;
     if (g.controller >= 0) score += g.controller === aiIdx ? 12 : -12;
-    return score;
+    return Math.max(-90000,Math.min(90000,score)); // Only a terminal result may carry a proof score.
   }
   const actionKey = (a) => `${a.type}:${a.choice ?? ''}:${a.skillIdx ?? ''}:${a.buffIdx ?? ''}`;
   function children(g, aiIdx, preferred) {
@@ -101,8 +101,10 @@
     });
   }
   function positionKey(g) {
-    const { log, banPicks, visualEvents, visualSeq, ...position } = g;
-    return JSON.stringify({ ...position, chainDigits: [...g.chainDigits].sort() });
+    // Only rule state belongs in the table: names, animation and logs never affect a move.
+    return JSON.stringify([g.turn, g.step, g.controller, g.chainCount, [...g.chainDigits].sort(),
+      g.actionsUsed, g.pendingDumingAgain, g.noDamageTurns, g.damagedThisTurn, g.banned,
+      g.over, g.result, g.winner, g.players.map(p => Object.entries(p).filter(([k]) => k !== 'name').map(([,v]) => v))]);
   }
   function checkBudget(ctx) {
     if (++ctx.nodes > ctx.maxNodes || Date.now() >= ctx.deadline) throw TIMEOUT;
@@ -136,7 +138,7 @@
       flag: best <= oldAlpha ? 'upper' : best >= oldBeta ? 'lower' : 'exact' });
     return best;
   }
-  function chooseAction(g, aiIdx, difficulty = 'normal', timeMs) {
+  function chooseClassic(g, aiIdx, difficulty = 'normal', timeMs) {
     if (actorOf(g) !== aiIdx) return null;
     const list = children(g, aiIdx);
     if (!list.length) return null;
@@ -167,12 +169,125 @@
     }
     return best;
   }
+  // Turn search follows additions and extra actions before handing the position to the opponent.
+  // A terminal minimax score is a bounded proof, not a claim that the whole game is solved.
+  function turnSearch(g, aiIdx, depth, alpha, beta, ctx, extensions = 0, ply = 0) {
+    checkBudget(ctx);
+    if (g.over) return evalGame(g, aiIdx);
+    if (depth <= 0 || extensions >= ctx.extensionLimit || ply >= 64) return evalGame(g, aiIdx);
+    const key = positionKey(g) + '|' + extensions + '|' + ply;
+    const cached = ctx.table.get(key), oldAlpha = alpha, oldBeta = beta;
+    if (cached && cached.depth >= depth) {
+      if (cached.flag === 'exact') return cached.value;
+      if (cached.flag === 'lower') alpha = Math.max(alpha, cached.value); else beta = Math.min(beta, cached.value);
+      if (alpha >= beta) return cached.value;
+    }
+    const list = children(g, aiIdx, cached?.action);
+    if (!list.length) return evalGame(g, aiIdx);
+    const maximize = actorOf(g) === aiIdx;
+    let best = maximize ? -Infinity : Infinity, bestAction;
+    for (const child of list) {
+      const boundary = child.g.turn !== g.turn || actorOf(child.g) !== actorOf(g) || child.g.actionsUsed < g.actionsUsed;
+      const value = turnSearch(child.g, aiIdx, depth - Number(boundary), alpha, beta, ctx,
+        boundary ? 0 : extensions + Number(child.a.type !== 'add'), ply + 1);
+      if (maximize ? value > best : value < best) { best = value; bestAction = actionKey(child.a); }
+      if (maximize) alpha = Math.max(alpha, best); else beta = Math.min(beta, best);
+      if (alpha >= beta) break;
+    }
+    if (ctx.table.size < 60000) ctx.table.set(key, { depth, value:best, action:bestAction,
+      flag:best <= oldAlpha ? 'upper' : best >= oldBeta ? 'lower' : 'exact' });
+    return best;
+  }
+  function comboWin(g, aiIdx, ctx, path = [], seen = new Set()) {
+    checkBudget(ctx);
+    if (g.over) return g.winner === aiIdx ? path : null;
+    if (actorOf(g) !== aiIdx || path.length >= 48) return null;
+    const key = positionKey(g);
+    if (seen.has(key)) return null;
+    seen.add(key);
+    for (const child of children(g, aiIdx)) {
+      if (!child.g.over && actorOf(child.g) !== aiIdx) continue;
+      const result = comboWin(child.g, aiIdx, ctx, [...path, child.a], seen);
+      if (result) return result;
+    }
+    return null;
+  }
+  function analyze(g, aiIdx, difficulty = 'expert', timeMs) {
+    const started = Date.now();
+    if (actorOf(g) !== aiIdx) return { action:null, nodes:0, depth:0, provenWin:false, elapsedMs:0 };
+    const list = children(g, aiIdx);
+    if (!list.length) return { action:null, nodes:0, depth:0, provenWin:false, elapsedMs:0 };
+    const expert = difficulty === 'expert';
+    const limits=timeMs && typeof timeMs==='object'?timeMs:null;
+    const budget=limits?Number.isFinite(limits.timeMs)?Math.max(0,limits.timeMs):Infinity:Number.isFinite(timeMs)?Math.max(0,timeMs):expert?1600:700;
+    let best = list[0].a, score = list[0].value, completed = 0, provenWin = false, line = [];
+    const kill = list.find(c => c.g.over && c.g.winner === aiIdx);
+    if (kill) return { action:kill.a, nodes:list.length, depth:0, provenWin:true, line:[kill.a], elapsedMs:Date.now()-started };
+    if (list.length === 1) return { action:best, nodes:1, depth:0, provenWin:false, elapsedMs:Date.now()-started };
+    const nodeLimit=limits?.maxNodes ?? (expert?160000:70000);
+    const ctx = { deadline:started+budget, nodes:0, maxNodes:nodeLimit, table:new Map(), extensionLimit:expert?24:10 };
+    // A dedicated tactical pass finds long 98K / gamble / freeze combinations even at the horizon.
+    const tactics = { ...ctx, deadline:limits?ctx.deadline:Math.min(ctx.deadline, Date.now()+Math.min(250,budget*.22)), maxNodes:Math.min(14000,Math.floor(nodeLimit*.22)) };
+    try {
+      const win = comboWin(g, aiIdx, tactics);
+      if (win?.length) { best=win[0]; line=win; provenWin=true; score=100000; }
+    } catch (e) { if (e !== TIMEOUT) throw e; }
+    ctx.nodes = tactics.nodes;
+    if (!provenWin) for (let depth=1; depth<=(expert?8:5); depth++) {
+      let candidate=best, bestScore=-Infinity, alpha=-Infinity;
+      list.sort((a,b) => Number(actionKey(b.a)===actionKey(best))-Number(actionKey(a.a)===actionKey(best)));
+      try {
+        for (const child of list) {
+          const boundary = child.g.turn !== g.turn || actorOf(child.g) !== aiIdx || child.g.actionsUsed < g.actionsUsed;
+          const value = turnSearch(child.g, aiIdx, depth-Number(boundary), alpha, Infinity, ctx,
+            boundary ? 0 : Number(child.a.type !== 'add'), 1);
+          if (value > bestScore) { bestScore=value; candidate=child.a; }
+          alpha=Math.max(alpha,value);
+        }
+      } catch (e) { if (e===TIMEOUT) break; throw e; }
+      best=candidate; score=bestScore; completed=depth;
+      if (Math.abs(score)>=100000) { provenWin=score>0; break; }
+    }
+    return { action:best, score, nodes:ctx.nodes, depth:completed, provenWin, line, elapsedMs:Date.now()-started };
+  }
+  function chooseAction(g, aiIdx, difficulty = 'normal', timeMs) {
+    if(difficulty==='learned') return chooseLearned(g,aiIdx,timeMs);
+    if(difficulty==='expert') {
+      let data;
+      try {data=typeof window!=='undefined'?window.__TWModel:require('./neural-model');} catch(_) {}
+      if(data?.approved) return chooseLearned(g,aiIdx,timeMs);
+    }
+    return difficulty === 'expert' || difficulty === 'hard' ? analyze(g,aiIdx,difficulty,timeMs).action : chooseClassic(g,aiIdx,difficulty,timeMs);
+  }
+  function findForcedWin(g,aiIdx,limit=100) {
+    if(g.over || g.phase!=='playing' || actorOf(g)!==aiIdx) return null;
+    const limits=typeof limit==='object'?limit:null;
+    const ctx={nodes:0,maxNodes:limits?.maxNodes ?? 14000,deadline:limits?Infinity:Date.now()+Math.max(0,limit)};
+    try {return comboWin(g,aiIdx,ctx);} catch(e) {if(e!==TIMEOUT) throw e;return null;}
+  }
+  let trained=null;
+  function chooseLearned(g,aiIdx,timeMs) {
+    if(actorOf(g)!==aiIdx || g.over) return null;
+    const isBrowser=typeof window!=='undefined';
+    const learning=isBrowser?window.__TWLearning:require('./learning');
+    let data;
+    try {data=isBrowser?window.__TWModel:require('./neural-model');}
+    catch(_) {return analyze(g,aiIdx,'expert',timeMs).action;}
+    if(!data || !learning) return analyze(g,aiIdx,'expert',timeMs).action;
+    try {trained=trained || learning.prepareModel(data);}
+    catch(_) {return analyze(g,aiIdx,'expert',timeMs).action;}
+    const started=Date.now(),budget=Number.isFinite(timeMs)?Math.max(0,timeMs):1600;
+    const line=findForcedWin(g,aiIdx,Math.min(250,budget*.2));
+    if(line?.length) return line[0];
+    return learning.mcts(g,trained,{budgetMs:Math.max(0,budget-(Date.now()-started)),simulations:10000,
+      heuristicBlend:data.inference?.heuristicBlend ?? 0}).action;
+  }
   const BAN_POOL = ['jiubaK', 'yuandu', 'duming', 'youli', 'jijiu', 'shipo', 'cuidu', 'bing'];
   function chooseBan(g, aiIdx, difficulty) {
     const pool = difficulty === 'easy' ? Object.values(SK.SKILLS).flat().map((s) => s.id) : BAN_POOL;
     return pool[Math.floor(Math.random() * pool.length)];
   }
-  const api = { chooseAction, chooseBan, legalActions, evalGame };
+  const api = { chooseAction, chooseBan, legalActions, evalGame, analyze, findForcedWin };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof window !== 'undefined') window.__TWAI = api;
 })();

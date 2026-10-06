@@ -1,0 +1,37 @@
+'use strict';
+const assert=require('node:assert/strict'),E=require('../engine'),A=require('../ai'),L=require('../learning');
+const original=L.opening(17),same=L.opening(17);
+assert.equal(E.serializeGame(original),E.serializeGame(same));
+assert.equal(L.observation(original).length,L.FEATURES);assert.ok([...L.observation(original)].every(Number.isFinite));
+for(const entry of L.legal(original)) assert.ok(entry.id>=0 && entry.id<L.ACTION_NAMES.length);
+console.log('  ✓ 固定种子开局、有限特征和动作映射');
+const before=E.serializeGame(original),result=L.mcts(original,null,{simulations:48});
+assert.equal(E.serializeGame(original),before);assert.ok(L.legal(original).some(e=>JSON.stringify(e.a)===JSON.stringify(result.action)));
+assert.ok(Math.abs(result.policy.reduce((s,v)=>s+v,0)-1)<1e-6);
+const legalIds=new Set(L.legal(original).map(e=>e.id));result.policy.forEach((v,i)=>{if(!legalIds.has(i)) assert.equal(v,0);});
+console.log('  ✓ MCTS 不改实局，策略概率只分配给合法行动');
+const g=L.opening(1,[]);Object.assign(g,{turn:0,controller:-1,step:'awaitAdd'});
+Object.assign(g.players[0],{skill:3,energy:11,hp:20});Object.assign(g.players[1],{skill:8,energy:3,hp:5});
+assert.deepEqual(L.mcts(g,null,{simulations:96}).action,{type:'add',choice:0});
+console.log('  ✓ 相加后操作者相同，MCTS 不错误翻转胜负视角');
+g.step='awaitAction';g.players[0].skill=6;g.controller=1;
+L.apply(g,L.mcts(g,null,{simulations:64}).action);assert.ok(!g.over || g.winner===1);
+console.log('  ✓ 尤里按实际操作者优化，不能替对方斩杀自己');
+const counter=L.opening(1,[]);counter.turn=0;counter.step='awaitAction';counter.players[0].skill=7;counter.players[0].energy=11;counter.players[1].huxi=2;counter.players[1].wudi=true;
+const targeted=L.legal(counter).filter(e=>e.a.buffIdx!=null);assert.equal(targeted.length,2);assert.notEqual(targeted[0].id,targeted[1].id);
+console.log('  ✓ 公平正义的不同目标有独立动作编码');
+const deterministic=A.analyze(original,L.actor(original),'expert',{maxNodes:400});
+assert.deepEqual(A.analyze(original,L.actor(original),'expert',{maxNodes:400}).action,deterministic.action);
+console.log('  ✓ 教师搜索以节点预算复现，不依赖机器速度');
+const fs=require('node:fs');
+if(fs.existsSync(require('node:path').join(__dirname,'../neural-model.js'))) {
+  const model=L.prepareModel(require('../neural-model'));
+  const prediction=L.predict(model,L.observation(original));
+  assert.ok(Number.isFinite(prediction.value));assert.ok([...prediction.logits].every(Number.isFinite));
+  const decision=L.mcts(original,model,{simulations:32});
+  assert.ok(L.legal(original).some(e=>JSON.stringify(e.a)===JSON.stringify(decision.action)));
+  assert.equal(E.serializeGame(original),before);console.log('  ✓ 已训练模型推理与 MCTS 合法，仍不修改原局');
+  const actor=L.actor(original),a=A.chooseAction(original,actor,'learned',20);
+  assert.ok(L.legal(original).some(e=>JSON.stringify(e.a)===JSON.stringify(a)));
+  console.log('  ✓ 学习型 AI 运行入口与规则一致');
+}

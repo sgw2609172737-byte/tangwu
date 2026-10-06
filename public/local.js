@@ -4,6 +4,34 @@ const $ = (s) => document.querySelector(s);
 const TW = window.__TW_engine;
 const SK = window.__TW_skills;
 const AI = window.__TWAI;
+const Rank = window.__TWRank;
+const RANK_KEY='tangwu_ai_rank_v1';
+const isHumanAI=()=>cfg.mode==='pve' || cfg.mode==='ranked';
+let localRankResult=null;
+function readRank() {
+  try {
+    const p=JSON.parse(localStorage.getItem(RANK_KEY));
+    if(p && ['rating','games','wins','losses','draws','best'].every(k=>Number.isFinite(p[k]) && p[k]>=0) && Array.isArray(p.history)) return p;
+  } catch(_) {}
+  return Rank.profile();
+}
+function refreshLocalRank() {
+  const p=readRank(),opponent=Rank.opponent(p);
+  $('#local-rank').innerHTML=TW_RankUI.summary(p,'本机 · 人机排位')+`<p class="rank-policy">本局对手：${opponent.name} · ${opponent.rating} 分<br>按积分匹配难度，普通对局不计分。返回菜单可续局；开始新局会将未完成排位记负。人机积分只保存在本机。</p>`+TW_RankUI.history(p);
+}
+function settleLocal(score,reason='对局结束') {
+  if(cfg.mode!=='ranked' || !cfg.rankMatch) return null;
+  const p=readRank();const result=Rank.settle(p,cfg.rankMatch.id,cfg.rankMatch.opponent,score,reason);
+  try {localStorage.setItem(RANK_KEY,JSON.stringify(p));}
+  catch(_) {toast('积分无法保存，请检查浏览器存储');}
+  return result;
+}
+function syncLocalMode() {
+  $('#diff-row').style.display=(cfg.mode==='pvp' || cfg.mode==='ranked')?'none':'flex';
+  $('#local-rank').classList.toggle('hidden',cfg.mode!=='ranked');
+  $('#btn-start').textContent=cfg.mode==='ranked'?'开始排位 →':'开始对局 →';
+  refreshLocalRank();
+}
 
 let cfg = { mode: 'pve', diff: 'normal' };
 let G = null;
@@ -13,7 +41,7 @@ let spectatorPaused = false, spectatorSpeed = 1;
 const SAVE_KEY = 'tangwu_match_v1';
 
 // 线上联机地址（改成你的在线版网址；留空则隐藏"线上联机"按钮）
-const ONLINE_URL = 'https://tang5.vercel.app/';
+const ONLINE_URL = /^https?:$/.test(location.protocol) && document.querySelector('script[src="../engine.js"]')?new URL('./',location.href).href:'https://tang5.vercel.app/';
 
 function toast(msg) {
   const t = $('#toast');
@@ -25,8 +53,8 @@ function toast(msg) {
 
 // ---------- 菜单 ----------
 function setOn(sel, btn) { $(sel).querySelectorAll('button').forEach((b) => { b.classList.toggle('on', b === btn); b.setAttribute('aria-pressed', String(b === btn)); }); }
-$('#mode-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => { setOn('#mode-seg', b); cfg.mode = b.dataset.mode; $('#diff-row').style.display = (cfg.mode !== 'pvp' ? 'flex' : 'none'); }; });
-$('#diff-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => { setOn('#diff-seg', b); cfg.diff = b.dataset.diff; $('#difficulty-note').textContent = { easy: '以基础决策为主，适合第一次熟悉技能。', normal: '会权衡攻守并预判后续行动，适合熟悉规则后挑战。', hard: '更深入地推演连招、控制与反制，留意你的斩杀线。' }[cfg.diff]; }; });
+$('#mode-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => { setOn('#mode-seg', b); cfg.mode = b.dataset.mode; syncLocalMode(); }; });
+$('#diff-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => { setOn('#diff-seg', b); cfg.diff = b.dataset.diff; $('#difficulty-note').textContent = { easy: '以基础决策为主，适合第一次熟悉技能。', normal: '会权衡攻守并预判后续行动，适合熟悉规则后挑战。', hard: '推演完整连招与对手反制，搜索更深入。', expert:window.__TWModel?.approved?'通过对照测试的学习型宗师，推演完整回合的策略、反制与连招。':'更大思考预算，优先寻找强制斩杀，再推演完整回合的攻守。', learned:`第 ${window.__TWModel?.generation ?? '?'} 代训练模型 · ${window.__TWModel?.training?.games ?? 0} 局训练${window.__TWModel?.approved?' · 已通过对照测试':' · 候选模型，强度仍在验证'}。` }[cfg.diff]; }; });
 $('#btn-start').onclick = startGameLocal;
 $('#btn-back').onclick = backToMenu;
 $('#btn-menu').onclick = () => { $('#result-modal').classList.add('hidden'); backToMenu(); };
@@ -48,16 +76,28 @@ function backToMenu() {
   $('#btn-back').classList.add('hidden');
   $('#menu').classList.remove('hidden');
   refreshResume();
+  refreshLocalRank();
 }
 
 function names() {
-  if (cfg.mode === 'pve') return ['你', 'AI'];
+  if (isHumanAI()) return ['你', cfg.mode==='ranked'?cfg.rankMatch.opponent.name:'AI'];
   if (cfg.mode === 'pvp') return ['玩家1', '玩家2'];
   return ['AI·红', 'AI·蓝'];
 }
 function actorOf(g) { return g.controller >= 0 ? g.controller : g.turn; }
 
 function startGameLocal() {
+  // Only replacing an already-started ranked game is a forfeit; menu/refresh resumes it.
+  const previous=readSave();
+  if(previous?.cfg.mode==='ranked') {
+    const selected=cfg;cfg=previous.cfg;settleLocal(0,'放弃未完成对局');cfg=selected;
+    try {localStorage.removeItem(SAVE_KEY);} catch(_) {}
+  }
+  localRankResult=null;
+  if(cfg.mode==='ranked') {
+    const opponent=Rank.opponent(readRank());cfg.diff=opponent.difficulty;
+    cfg.rankMatch={id:crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random()}`,opponent};
+  } else delete cfg.rankMatch;
   TW_FX.reset();
   cancelAI();
   spectatorPaused = false;
@@ -90,7 +130,7 @@ function renderBan() {
     afterBan();
     return;
   }
-  if (cfg.mode === 'pve') {
+  if (isHumanAI()) {
     if (G.banPicks[0]) {
       sub.textContent = '✅ 你已选择禁用，AI 正在禁用…';
       grid.innerHTML = '';
@@ -236,14 +276,14 @@ function renderControls() {
   if (G.over) { el.innerHTML = ''; return; }
   const turnP = G.players[G.turn];
   const oppP = G.players[1 - G.turn];
-  const humanDecides = (cfg.mode === 'pvp') || (cfg.mode === 'pve' && actorOf(G) === 0); // 人机：你是0号，AI是1号
+  const humanDecides = (cfg.mode === 'pvp') || (isHumanAI() && actorOf(G) === 0); // 人机：你是0号，AI是1号
   if (!humanDecides) {
     let msg = (cfg.mode === 'ai') ? (spectatorPaused ? '观战已暂停，可调整速度后继续。' : '🤖 AI 对战中…') : '🤖 AI 思考中…';
-    if (cfg.mode === 'pve' && G.turn === 0 && G.controller >= 0) msg = '你的回合被 AI 控制中…';
+    if (isHumanAI() && G.turn === 0 && G.controller >= 0) msg = '你的回合被 AI 控制中…';
     el.innerHTML = `<div class="wait-msg">${msg}</div>`;
     return;
   }
-  const ctrlNote = (cfg.mode === 'pve' && G.controller === 0) ? `🧠 你在控制 ${turnP.name} 的回合：` : '';
+  const ctrlNote = (isHumanAI() && G.controller === 0) ? `🧠 你在控制 ${turnP.name} 的回合：` : '';
   if (G.step === 'awaitAdd') {
     el.innerHTML = `<div class="prompt">${ctrlNote}选择相加的手，预览下一步可用技能。</div>` + addChoicesHTML(turnP, oppP, SK.SKILLS, G.banned);
     el.querySelectorAll('[data-add]').forEach((b) => { b.onclick = () => doAction({ type: 'add', choice: Number(b.dataset.add) }); });
@@ -311,16 +351,16 @@ function doAction(a) {
 
 const workerURL = new URL('ai-worker.js', document.currentScript.src);
 let aiWorker = null, aiGeneration = 0;
-function cancelAI() {
+function cancelAI(terminate=true) {
   aiGeneration++;
   clearTimeout(aiTimer);
-  if (aiWorker) { aiWorker.terminate(); aiWorker = null; }
+  if (terminate && aiWorker) { aiWorker.terminate(); aiWorker = null; }
   hideThinking();
 }
 function scheduleAI() {
-  cancelAI();
+  cancelAI(false);
   if (!G || G.over || (cfg.mode === 'ai' && spectatorPaused)) return;
-  const needAI = cfg.mode === 'ai' || (cfg.mode === 'pve' && actorOf(G) === 1);
+  const needAI = cfg.mode === 'ai' || (isHumanAI() && actorOf(G) === 1);
   if (!needAI) return;
   const generation = aiGeneration, game = G;
   showThinking();
@@ -338,13 +378,13 @@ function scheduleAI() {
       finish(AI.chooseAction(G, actorOf(G), cfg.diff, 60));
     };
     try {
-      aiWorker = new Worker(workerURL);
+      aiWorker = aiWorker || new Worker(workerURL);
       aiWorker.onmessage = ({ data }) => {
-        if (generation !== aiGeneration) return;
+        if (generation !== aiGeneration || data.id!==generation) return;
         if (data.error) fallback(); else finish(data.action);
       };
       aiWorker.onerror = (event) => { event.preventDefault(); fallback(); };
-      aiWorker.postMessage({ game: TW.serializeGame(G), actor: actorOf(G), difficulty: cfg.diff, budget: cfg.diff === 'hard' ? 700 : 100 });
+      aiWorker.postMessage({ id:generation,game: TW.serializeGame(G), actor: actorOf(G), difficulty: cfg.diff, budget: ['expert','learned'].includes(cfg.diff)?1600:cfg.diff === 'hard' ? 700 : 100 });
     } catch (e) { fallback(); }
   }, 320 / (cfg.mode === 'ai' ? spectatorSpeed : 1));
 }
@@ -355,6 +395,10 @@ function renderResult() {
   if (!G.over) return;
   $('#result-title').textContent = G.result === 'draw' ? '🤝 平局！' : `🎉 ${G.players[G.winner].name} 获胜！`;
   $('#result-sub').textContent = G.result === 'draw' ? '本局平局' : '';
+  if(cfg.mode==='ranked') {
+    localRankResult=localRankResult || settleLocal(G.result==='draw'?.5:G.winner===0?1:0);
+    if(localRankResult) $('#result-sub').textContent=`人机排位 ${localRankResult.delta>0?'+':''}${localRankResult.delta} 分 · ${localRankResult.after} 分 · ${Rank.progress(readRank()).name}`;
+  }
 }
 
 let localBanQuery = '', localBanCost = -1;
@@ -381,7 +425,7 @@ $('#log').addEventListener('scroll', () => { const el = $('#log'); if (el.scroll
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.repeat || !G || G.over) return;
   if (document.querySelector('.modal:not(.hidden)') || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
-  if (cfg.mode === 'ai' || (cfg.mode === 'pve' && actorOf(G) !== 0)) return;
+  if (cfg.mode === 'ai' || (isHumanAI() && actorOf(G) !== 0)) return;
   let button;
   if (G.step === 'awaitAdd' && /^[12]$/.test(e.key)) button = $('#controls').querySelectorAll('[data-add]')[Number(e.key) - 1];
   else if (G.step === 'awaitAction' && /^[1-9]$/.test(e.key)) button = $('#controls').querySelectorAll('[data-skill]')[Number(e.key) - 1];
@@ -402,7 +446,8 @@ $('#controls').insertAdjacentElement('beforebegin', matchTools);
 function readSave() {
   try {
     const saved = JSON.parse(localStorage.getItem(SAVE_KEY));
-    if (saved?.version !== 1 || !['pve','pvp','ai'].includes(saved.cfg?.mode) || !['easy','normal','hard'].includes(saved.cfg?.diff)) return null;
+    if (saved?.version !== 1 || !['pve','pvp','ai','ranked'].includes(saved.cfg?.mode) || !['easy','normal','hard','expert','learned'].includes(saved.cfg?.diff)) return null;
+    if(saved.cfg.mode==='ranked' && (!saved.cfg.rankMatch?.id || !Number.isFinite(saved.cfg.rankMatch.opponent?.rating))) return null;
     const game = TW.deserializeGame(saved.game);
     if (game.phase !== 'playing' || game.over || game.players?.length !== 2 || ![0,1].includes(game.turn) || !Array.isArray(game.log) || !Array.isArray(game.banned)) return null;
     return { ...saved, game };
@@ -418,6 +463,12 @@ function saveMatch() {
   } catch (_) { status.textContent = '无法保存：浏览器存储不可用'; }
 }
 function updateMatchTools() {
+  const ranked=cfg.mode==='ranked';
+  $('#local-rank-match').classList.toggle('hidden',!ranked);
+  if(ranked) {
+    $('#local-rank-match').innerHTML=`<span>人机排位 · ${Rank.progress(readRank()).name} · 对手 ${cfg.rankMatch.opponent.rating} 分</span><button id="btn-local-resign" class="ghost" ${G.over?'disabled':''}>认输并结算</button>`;
+    $('#btn-local-resign').onclick=()=>{cancelAI();G.over=true;G.phase='over';G.step='over';G.winner=1;G.result='win';G.log.push('你主动认输');render();};
+  }
   const watching = cfg.mode === 'ai' && !G.over;
   $('#btn-spectate-pause').classList.toggle('hidden', !watching);
   $('#spectate-speed-label').classList.toggle('hidden', !watching);
@@ -428,10 +479,11 @@ resumeButton.onclick = () => {
   const saved = readSave();
   if (!saved) { refreshResume(); toast('存档不可用，请开始新对局'); return; }
   cancelAI(); TW_FX.reset(); cfg = saved.cfg; G = saved.game;
+  localRankResult=null;
   spectatorPaused = cfg.mode === 'ai'; _prevHp[0] = _prevHp[1] = -1; _lastLogLen = 0;
   setOn('#mode-seg', document.querySelector(`[data-mode="${cfg.mode}"]`));
   document.querySelector(`[data-diff="${cfg.diff}"]`).click();
-  $('#diff-row').style.display = cfg.mode === 'pvp' ? 'none' : 'flex';
+  syncLocalMode();
   $('#menu').classList.add('hidden'); $('#ban').classList.add('hidden');
   $('#btn-back').classList.remove('hidden'); $('#game').classList.remove('hidden');
   render(); scheduleAI(); toast('已继续上次对局');
@@ -451,3 +503,6 @@ $('#btn-export-log').onclick = () => {
   document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
 };
 refreshResume();
+refreshLocalRank();
+const requestedMode=new URLSearchParams(location.search).get('mode');
+if(['pve','pvp','ai','ranked'].includes(requestedMode)) document.querySelector(`[data-mode="${requestedMode}"]`).click();
