@@ -1,6 +1,13 @@
 /* 唐五 · 深蓝对战桌 / 铜金操作 / 清晰的双手读数 */
 :root { color-scheme: dark; --bg1:#101f2a; --bg2:#172d38; --panel:#182e3a; --panel2:#203c48; --line:#35505b; --txt:#e8eee9; --dim:#a4bac0; --gold:#dfb780; --gold2:#bc8f59; --red:#ed8b87; --green:#80c8a1; --blue:#85bfd2; --purple:#bcacd7; --cyan:#85cbd0; --display:'STKaiti','KaiTi','Songti SC',serif; }
 * { box-sizing:border-box; margin:0; padding:0; }
+/* Keep document metadata out of layout and make structural boxes explicit.
+   The desktop renderer must not depend on UA defaults for the app's geometry. */
+:where(head,title,meta,link,style,script,template),[hidden] { display:none!important; }
+:where(html,body,main,section,div,p,h1,h2,h3,details,header,footer,nav,aside,figure,figcaption,ul,ol) { display:block; }
+:where(li) { display:list-item; }
+:where(summary) { display:list-item; cursor:pointer; }
+:where(button,input,select,textarea,svg) { display:inline-block; }
 html { min-height:100%; background:var(--bg1); scroll-behavior:smooth; }
 body { min-height:100vh; color:var(--txt); background:radial-gradient(ellipse at 15% 0%,#25475380,transparent 55%),var(--bg1); font:15px/1.6 'Microsoft YaHei','PingFang SC',sans-serif; }
 button,input,select { font:inherit; }

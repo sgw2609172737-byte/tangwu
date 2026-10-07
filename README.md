@@ -291,6 +291,8 @@ node test/live-poll.js     # 活体测试（轮询版，模拟新版客户端协
 
 `npm run build:electron` 将当前本地页面、AI 模型及训练记录模块组装到 `../tangwu-electron/app`；进入该目录运行 `npm run dist` 生成便携 EXE。原来的 `node tools/build-electron.js` 入口仍兼容。
 
+便携版每次启动使用独立的临时资源目录；重复打开会返回已有窗口，防止其他进程退出时删除当前窗口仍在使用的渲染资源。electron-builder 24 的 `unpackDirName: false` 与类型文档不一致，本项目按其实现使用 `true`，并通过实际双启动检查隔离路径。
+
 - **本地单机版**：双击 `启动本地版.bat`（Edge 应用模式）打开 `public/local.html`，含人机对战（三档 AI）、本地双人、AI 观战；纯离线，不依赖服务器、不联网。
 - **AI**：`ai.js`（仓库根，Node+浏览器双环境）局面评估与有预算的迭代加深搜索，困难/宗师增加完整回合及强制连招搜索，**不接任何大模型/API**；`lib/ai-player.js` 在服务端驱动人机对战（自建 `server.js` 与 Vercel `api/*` 共用）。
 - **网页版人机对战**：大厅选难度 →「🤖 对战 AI」（AI 在服务端权威结算）。

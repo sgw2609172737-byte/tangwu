@@ -61,7 +61,9 @@ const pkg = {
     directories: { output: 'dist' },
     files: ['main.js', 'preload.js','lib/local-training.js','skills.js', 'engine.js', 'ai.js', 'ranked.js', 'learning.js', 'neural-model.js','replay.js', 'icon.ico', 'public/**/*'],
     win: { target: ['portable'], icon: 'icon.ico' },
-    portable: { artifactName: 'TangWu.exe' },
+    // In the installed electron-builder 24, true omits UNPACK_DIR_NAME and
+    // selects per-launch $PLUGINSDIR. false is incorrectly treated as default.
+    portable: { artifactName: 'TangWu.exe', unpackDirName: true },
   },
 };
 

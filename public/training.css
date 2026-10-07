@@ -1,5 +1,5 @@
 .training-panel{margin-top:18px;padding-top:14px;border-top:1px solid var(--line,#334050);color:var(--muted,#94a3b8);font-size:12px}
 .training-panel summary{cursor:pointer}.training-choice{display:flex;align-items:flex-start;gap:9px;margin:14px 0 8px;color:var(--text,#e5e7eb);font-size:13px;line-height:1.6}
-.training-choice input{width:16px;height:16px;margin-top:3px;flex:none;accent-color:#d8c29d}.training-help{font-size:11px;line-height:1.8;margin:8px 0}
+.home-launcher .training-choice input,.training-choice input[type=checkbox]{width:16px;height:16px;min-height:0;padding:0;margin:3px 0 0;flex:none;appearance:auto;accent-color:#d8c29d}.training-help{font-size:11px;line-height:1.8;margin:8px 0}
 .training-actions{display:flex;gap:8px;flex-wrap:wrap}.training-actions button{font-size:11px;padding:8px 12px}.training-live{font-size:12px;line-height:1.7;color:#d8c29d;margin:8px 0 14px;overflow-wrap:anywhere}
 .training-actions [hidden]{display:none}

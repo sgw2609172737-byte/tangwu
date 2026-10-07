@@ -13,6 +13,10 @@ function createWindow() {
   win.webContents.on('will-navigate',(event,url)=>{if(url!==pathToFileURL(entry).href)event.preventDefault();});
   win.loadFile(entry);
 }
+const primary=app.requestSingleInstanceLock();
+if(!primary)app.quit();
+else {
+app.on('second-instance',()=>{if(win&&!win.isDestroyed()){if(win.isMinimized())win.restore();if(process.env.TANGWU_HEADLESS_TEST!=='1'){win.show();win.focus();}}});
 app.whenReady().then(()=>{
   // Portable records stay beside the EXE; installed/development builds use userData.
   const directory=process.env.PORTABLE_EXECUTABLE_DIR?path.join(process.env.PORTABLE_EXECUTABLE_DIR,'TangWu-data'):path.join(app.getPath('userData'),'training');
@@ -23,4 +27,5 @@ app.whenReady().then(()=>{
   });
   createWindow();app.on('activate',()=>{if(BrowserWindow.getAllWindows().length===0)createWindow();});
 });
+}
 app.on('window-all-closed',()=>{if(process.platform!=='darwin')app.quit();});
