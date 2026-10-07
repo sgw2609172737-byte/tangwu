@@ -1,7 +1,7 @@
 'use strict';
 (()=>{
   const KEY='tangwu_training_identity_v1',PREF='tangwu_training_enabled_v1',PENDING='tangwu_training_pending_v1';
-  const online=/^https?:$/.test(location.protocol);
+  const online=/^https?:$/.test(location.protocol),desktop=window.TWDesktopTraining;
   let enabled=false,identity='',last=Promise.resolve(),count=0;
   try {enabled=localStorage.getItem(PREF)==='1';identity=localStorage.getItem(KEY)||'';}catch(_){}
   const panel=document.createElement('details');panel.className='training-panel';
@@ -9,16 +9,20 @@
   const anchor=document.querySelector('#panel-ai')||document.querySelector('#btn-start')?.parentElement;
   if(!anchor)return;anchor.append(panel);
   const checkbox=panel.querySelector('#training-enabled'),status=panel.querySelector('#training-status');checkbox.checked=enabled;
+  if(desktop){for(const id of ['training-connect','training-copy','training-restore'])panel.querySelector('#'+id).hidden=true;
+    panel.querySelector('.training-help:last-child').textContent='本机保留最近 500 局，训练程序会自动读取。关闭开关会停止接收新记录。';}
   const live=document.createElement('p');live.id='training-live';live.className='training-live hidden';live.setAttribute('role','status');document.querySelector('#turn-banner')?.insertAdjacentElement('afterend',live);
   function stored(){try{return JSON.parse(localStorage.getItem(PENDING)||'[]');}catch(_){return [];}}
   function savePending(records){localStorage.setItem(PENDING,JSON.stringify(records.slice(-5)));}
-  function show(message){status.textContent=message||(!enabled?'未开启，本局不会用于训练。':online?`已开启 · 云端已收录 ${count} 局，等待批次训练。`:`离线记录保存在本机 · ${stored().length} 局，可导出用于训练。`);}
+  function show(message){status.textContent=message||(!enabled?'未开启，本局不会用于训练。':desktop?`已开启 · 本机已收录 ${count} 局，等待批次训练。`:online?`已开启 · 云端已收录 ${count} 局，等待批次训练。`:`离线记录保存在本机 · ${stored().length} 局，可导出用于训练。`);}
   async function call(op,extra={}) {
+    if(desktop){const data=await desktop.request({op,...extra});if(!data.ok)throw Object.assign(Error(data.err||'本机记录保存失败'),{code:data.code});if(Number.isFinite(data.count))count=data.count;return data;}
     const response=await fetch('/api/training',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({op,identity,...extra}),signal:AbortSignal.timeout(10000)});
     const data=await response.json();if(!response.ok||!data.ok)throw Object.assign(Error(data.err||'训练记录连接失败'),{code:response.status});
     if(data.identity){identity=data.identity;localStorage.setItem(KEY,identity);}if(Number.isFinite(data.count))count=data.count;return data;
   }
   async function configure(){
+    if(desktop){await call('profile',{enabled});show();if(enabled)await retry();return;}
     if(!online){if(enabled&&!identity){identity=Array.from(crypto.getRandomValues(new Uint8Array(32)),n=>n.toString(16).padStart(2,'0')).join('');localStorage.setItem(KEY,identity);}show();return;}
     if(!identity&&!enabled){show();return;}
     await call('profile',{enabled});show();if(enabled)await retry();
@@ -27,7 +31,7 @@
   checkbox.onchange=()=>{enabled=checkbox.checked;try{localStorage.setItem(PREF,enabled?'1':'0');}catch(_){}startConfigure();};
   function download(data,name){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   async function retry(){
-    if(!online||!enabled||!identity)return;
+    if(!(online||desktop)||!enabled||(!desktop&&!identity))return;
     for(const record of stored()){
       try {const result=await call('record',{record});if(result.accepted)savePending(stored().filter(r=>r.id!==record.id));}
       catch(e){if(e.code===400)savePending(stored().filter(r=>r.id!==record.id));else throw e;}
@@ -36,12 +40,12 @@
   async function submit(record){
     if(!record||!enabled)return;
     try {if(!stored().some(r=>r.id===record.id))savePending([...stored(),record]);
-      if(online){await last;await retry();live.textContent=stored().some(r=>r.id===record.id)?'记录待上传，请确认参与开关已开启。':'本局已收录，等待批次训练。';}
+      if(online||desktop){await last;await retry();live.textContent=stored().some(r=>r.id===record.id)?'记录待保存，请确认参与开关已开启。':desktop?'本局已收录到本机，等待批次训练。':'本局已收录，等待批次训练。';}
       else{show();live.textContent='本局已保存在本机，可导出参与训练。';}}
-    catch(e){show('记录已暂存在本机，稍后重试上传。');live.textContent='本局记录待上传。';}
+    catch(e){show('记录已暂存在本机，稍后重试保存。');live.textContent='本局记录待保存。';}
   }
   panel.querySelector('#training-export').onclick=async()=>{
-    try {await last;let cloud=[];if(online&&identity){try{cloud=(await call('export')).records;}catch(e){if(!stored().length)throw e;}}
+    try {await last;let cloud=[];if(desktop||online&&identity){try{cloud=(await call('export')).records;}catch(e){if(!stored().length)throw e;}}
       const records=[...new Map([...stored(),...cloud].map(r=>[r.id,r])).values()];
       download({version:1,records},'tangwu-human-games.json');show(`已导出 ${records.length} 局。`);}
     catch(e){show(e.message);}
@@ -71,5 +75,6 @@
     live.textContent={collected:'本局已收录，等待批次训练。',pending:'记录已暂存，下一局会继续尝试保存。',disabled:'参与训练已关闭。',skipped:'本局记录不完整，未加入训练。','next-game':'将从下一局开始记录。',recording:'本局参与训练 · 完整结束后保存为样本。'}[state.training.status]||'';
     if(state.over&&state.training.status==='collected'&&!roomSeen.has(state.roomCode)){roomSeen.add(state.roomCode);call('profile').then(()=>show()).catch(()=>{});}}
   window.TWTraining={participant,enabled:()=>enabled,submit,active,room,ready:()=>last};
-  show();if(enabled)startConfigure();
+  show();if(desktop){checkbox.disabled=true;last=call('profile').then(data=>{enabled=data.enabled;checkbox.checked=enabled;localStorage.setItem(PREF,enabled?'1':'0');show();if(enabled)return retry();}).catch(e=>show(e.message)).finally(()=>checkbox.disabled=false);}
+  else if(enabled)startConfigure();
 })();

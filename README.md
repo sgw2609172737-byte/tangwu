@@ -120,7 +120,11 @@ npm run build:dist
 
 内置浏览器无法下载时可用「复制连接」。已有连接文件可通过「恢复训练连接」载入，在另一浏览器继续使用相同的私有训练记录；只能恢复属于当前网站的文件。
 
+桌面 EXE 中同样提供参与开关。完整人机对局经引擎验证后自动写入 EXE 旁的 `TangWu-data/human-records.json`，保留最近 500 局；关闭开关停止接收，已有记录继续保留。记录无需联网或手动导出。开发/安装版使用 `%APPDATA%/tangwu-local/training/human-records.json`。双击 HTML 的浏览器离线模式仍可通过「导出对局」保存记录。
+
 本机已经支持自动同步和训练混入：把连接文件保存为 `data/training-link.json` 后，`train-ai.ps1` 每次启动训练会拉取该身份的记录、使用当前模型重新搜索各个局面的策略目标，再与教师/自我对弈样本混合。价值标签来自验证后的真实胜负，训练和验证仍按整局分开；人类样本最多占 60,000 条回放容量的 20%。因此不会直接模仿你每一手操作，也不会把认输当作棋盘必败。模型仍须通过独立晋级测试才会上线。
+
+训练程序也会自动读取项目上一级目录的 `TangWu-data/human-records.json`（本机为 `E:\ds\TangWu-data\human-records.json`）以及桌面应用的用户数据目录，与网页数据去重合并。EXE 移到其他目录时可用 `train-ai.ps1 -HumanLocal '新目录\TangWu-data\human-records.json'` 指定路径。即使没有网页连接文件，本地对局也能参加训练。
 
 ```powershell
 node scripts/sync-human.js --link data/training-link.json --out data/human-training
@@ -284,6 +288,8 @@ node test/live-poll.js     # 活体测试（轮询版，模拟新版客户端协
 - 功能回归：`npm test`；浏览器验证：`python test/ui-refinement.py`、`python test/ui-smoke.py`、`python test/ui-effects.py`，截图输出至 `output/qa/`。
 
 ## 本地版 / 人机对战 / 打包 exe
+
+`npm run build:electron` 将当前本地页面、AI 模型及训练记录模块组装到 `../tangwu-electron/app`；进入该目录运行 `npm run dist` 生成便携 EXE。原来的 `node tools/build-electron.js` 入口仍兼容。
 
 - **本地单机版**：双击 `启动本地版.bat`（Edge 应用模式）打开 `public/local.html`，含人机对战（三档 AI）、本地双人、AI 观战；纯离线，不依赖服务器、不联网。
 - **AI**：`ai.js`（仓库根，Node+浏览器双环境）局面评估与有预算的迭代加深搜索，困难/宗师增加完整回合及强制连招搜索，**不接任何大模型/API**；`lib/ai-player.js` 在服务端驱动人机对战（自建 `server.js` 与 Vercel `api/*` 共用）。

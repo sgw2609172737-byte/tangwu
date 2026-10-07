@@ -116,12 +116,15 @@ def main():
     parser.add_argument('--batch',type=int,default=512);parser.add_argument('--width',type=int,default=128)
     parser.add_argument('--eval-pairs',type=int,default=8);parser.add_argument('--eval-budget',type=int,default=50)
     parser.add_argument('--seed',type=int,default=12000);parser.add_argument('--resume',action='store_true')
-    parser.add_argument('--human-link',default='data/training-link.json');parser.add_argument('--human-data',default='data/human-training')
+    parser.add_argument('--human-link',default='data/training-link.json');parser.add_argument('--human-data',default='data/human-training');parser.add_argument('--human-local',default='')
     args=parser.parse_args();out=(ROOT/args.out).resolve();out.mkdir(parents=True,exist_ok=True)
     if (out/'report.json').exists() and not args.resume:raise RuntimeError('Run exists; choose a new --out or --resume')
     if not torch.cuda.is_available():raise RuntimeError('CUDA GPU is required for this run; no silent CPU fallback')
     link=(ROOT/args.human_link).resolve()
-    if link.exists():run_node('sync-human.js','--link',link,'--out',(ROOT/args.human_data).resolve())
+    sync_args=['--out',(ROOT/args.human_data).resolve()]
+    if link.exists():sync_args+=['--link',link]
+    if args.human_local:sync_args+=['--local',(ROOT/args.human_local).resolve()]
+    run_node('sync-human.js',*sync_args)
     human=(ROOT/args.human_data).resolve();human_snapshot=None
     if (human/'summary.json').exists() and read_json(human/'summary.json')['games']>0:
         digest=hashlib.sha256((human/'games-human.jsonl').read_bytes()).hexdigest()[:16]

@@ -89,7 +89,8 @@ function names() {
 }
 function actorOf(g) { return g.controller >= 0 ? g.controller : g.turn; }
 
-function startGameLocal() {
+async function startGameLocal() {
+  await window.TWTraining?.ready();
   // Only replacing an already-started ranked game is a forfeit; menu/refresh resumes it.
   const previous=readSave();
   if(previous?.cfg.mode==='ranked') {
@@ -484,7 +485,8 @@ function updateMatchTools() {
   $('#btn-spectate-pause').textContent = spectatorPaused ? '继续观战' : '暂停观战';
   $('#btn-spectate-pause').setAttribute('aria-pressed', String(spectatorPaused));
 }
-resumeButton.onclick = () => {
+resumeButton.onclick = async () => {
+  await window.TWTraining?.ready();
   const saved = readSave();
   if (!saved) { refreshResume(); toast('存档不可用，请开始新对局'); return; }
   cancelAI(); TW_FX.reset(); cfg = saved.cfg; G = saved.game;
