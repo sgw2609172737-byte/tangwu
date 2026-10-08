@@ -41,6 +41,8 @@ let aiTimer = null;
 let toastTimer = null;
 let spectatorPaused = false, spectatorSpeed = 1;
 const SAVE_KEY = 'tangwu_match_v1';
+const LAST_KEY = 'tangwu_last_match_v1';
+let reviewingMatch=false, resultDismissed=false, resultWaitFor=null, archivedGame=null;
 
 // 线上联机地址（改成你的在线版网址；留空则隐藏"线上联机"按钮）
 const ONLINE_URL = /^https?:$/.test(location.protocol) && document.querySelector('script[src="../engine.js"]')?new URL('./',location.href).href:'https://tang5.vercel.app/';
@@ -59,7 +61,8 @@ $('#mode-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => { s
 $('#diff-seg').querySelectorAll('button').forEach((b) => { b.onclick = () => { setOn('#diff-seg', b); cfg.diff = b.dataset.diff; $('#difficulty-note').textContent = { easy: '以基础决策为主，适合第一次熟悉技能。', normal: '会权衡攻守并预判后续行动，适合熟悉规则后挑战。', hard: '推演完整连招与对手反制，搜索更深入。', expert:window.__TWModel?.approved?'通过对照测试的学习型宗师，推演完整回合的策略、反制与连招。':'更大思考预算，优先寻找强制斩杀，再推演完整回合的攻守。', learned:`第 ${window.__TWModel?.generation ?? '?'} 代训练模型 · ${window.__TWModel?.training?.games ?? 0} 局训练${window.__TWModel?.approved?' · 已通过对照测试':' · 候选模型，强度仍在验证'}。` }[cfg.diff]; }; });
 $('#btn-start').onclick = startGameLocal;
 $('#btn-back').onclick = backToMenu;
-$('#btn-menu').onclick = () => { $('#result-modal').classList.add('hidden'); backToMenu(); };
+$('#btn-menu').onclick = () => { resultDismissed=true; $('#result-modal').classList.add('hidden'); backToMenu(); };
+$('#btn-view-log').onclick = () => { resultDismissed=true;$('#result-modal').classList.add('hidden');$('#log').scrollIntoView({behavior:document.documentElement.dataset.motion==='reduced'?'auto':'smooth',block:'center'});$('#log').scrollTop=$('#log').scrollHeight; };
 $('#btn-again').onclick = () => { $('#result-modal').classList.add('hidden'); startGameLocal(); };
 
 // 线上联机：Electron 主进程用 setWindowOpenHandler 把 window.open 转到系统浏览器；网页版直接开新窗口
@@ -70,6 +73,7 @@ if (ONLINE_URL) {
 }
 
 function backToMenu() {
+  resultDismissed=true;
   TW_FX.reset();
   cancelAI();
   G = null;
@@ -98,6 +102,7 @@ async function startGameLocal() {
     try {localStorage.removeItem(SAVE_KEY);} catch(_) {}
   }
   localRankResult=null;
+  reviewingMatch=false;resultDismissed=false;resultWaitFor=null;archivedGame=null;
   if(cfg.mode==='ranked') {
     const opponent=Rank.opponent(readRank());cfg.diff=opponent.difficulty;
     cfg.rankMatch={id:crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random()}`,opponent};
@@ -248,8 +253,8 @@ function render() {
   $('#turn-banner').classList.toggle('myturn', !G.over);
   renderLog();
   renderControls();
-  renderResult();
   TW_FX.sync(G, [$('#p0-card'), $('#p1-card')], SK.SKILLS);
+  renderResult();
   updateMatchTools();
   saveMatch();
 }
@@ -261,7 +266,7 @@ function hideThinking() { const el = $('#ai-thinking'); if (el) el.classList.add
 function renderLog() {
   const el = $('#log');
   const stick = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
-  const items = G.log.slice(-80); // 只显示最近 80 条
+  const items = G.log; // 引擎最多保留400条，赛后仍可完整查看。
   const cnt = document.querySelector('#log-count');
   if (cnt) cnt.textContent = items.length + ' 条';
   el.innerHTML = items.map((t, i) => {
@@ -280,6 +285,7 @@ function renderLog() {
 function renderControls() {
   const el = $('#controls');
   if (G.over) { el.innerHTML = ''; return; }
+  if (TW_FX.busy()) {el.innerHTML='<div class="wait-msg">出牌演出中…</div>';return;}
   const turnP = G.players[G.turn];
   const oppP = G.players[1 - G.turn];
   const humanDecides = (cfg.mode === 'pvp') || (isHumanAI() && actorOf(G) === 0); // 人机：你是0号，AI是1号
@@ -344,7 +350,7 @@ function clickSkill(skillIdx) {
 }
 
 function doAction(a) {
-  if (!G || G.over) return;
+  if (!G || G.over || TW_FX.busy() || reviewingMatch) return;
   if (window.TW_SFX) TW_SFX.click();
   if(!window.TWTraining?.enabled()) trainingReplay=null;
   const r=window.__TWReplay.perform(G,a,trainingReplay);
@@ -367,6 +373,7 @@ function scheduleAI() {
   const needAI = cfg.mode === 'ai' || (isHumanAI() && actorOf(G) === 1);
   if (!needAI) return;
   const generation = aiGeneration, game = G;
+  if(TW_FX.busy()){TW_FX.whenIdle().then(()=>{if(generation===aiGeneration&&G===game)scheduleAI();});return;}
   showThinking();
   aiTimer = setTimeout(() => {
     if (generation !== aiGeneration || G !== game || G.over) return;
@@ -396,8 +403,10 @@ function scheduleAI() {
 function renderResult() {
   window.TWTraining?.active(trainingReplay,G.over);
   const modal = $('#result-modal');
-  modal.classList.toggle('hidden', !G.over);
+  modal.classList.toggle('hidden', !G.over || resultDismissed || reviewingMatch || TW_FX.busy());
   if (!G.over) return;
+  if(reviewingMatch)return;
+  if(TW_FX.busy() && resultWaitFor!==G){const ended=G;resultWaitFor=ended;TW_FX.whenIdle().then(()=>{if(G===ended&&!resultDismissed&&!reviewingMatch)renderResult();});}
   if(trainingReplay && !trainingSent.has(trainingReplay.id)) {
     trainingSent.add(trainingReplay.id);
     try {const record=window.__TWReplay.clean(window.__TWReplay.finish(trainingReplay,G));window.TWTraining?.submit(record);}
@@ -405,6 +414,7 @@ function renderResult() {
   }
   $('#result-title').textContent = G.result === 'draw' ? '🤝 平局！' : `🎉 ${G.players[G.winner].name} 获胜！`;
   $('#result-sub').textContent = G.result === 'draw' ? '本局平局' : '';
+  $('#result-reason').textContent=G.endReason?.text || '对局已结束。可以查看本局日志确认最后的结算。';
   if(cfg.mode==='ranked') {
     localRankResult=localRankResult || settleLocal(G.result==='draw'?.5:G.winner===0?1:0);
     if(localRankResult) $('#result-sub').textContent=`人机排位 ${localRankResult.delta>0?'+':''}${localRankResult.delta} 分 · ${localRankResult.after} 分 · ${Rank.progress(readRank()).name}`;
@@ -449,6 +459,7 @@ const resumeButton = document.createElement('button');
 resumeButton.id = 'btn-resume'; resumeButton.className = 'resume-action hidden';
 resumeButton.textContent = '继续上次对局';
 $('#btn-start').insertAdjacentElement('afterend', resumeButton);
+const lastButton=document.createElement('button');lastButton.id='btn-last-match';lastButton.className='resume-action hidden';lastButton.textContent='查看上局对局与日志';resumeButton.insertAdjacentElement('afterend',lastButton);
 const matchTools = document.createElement('div');
 matchTools.className = 'match-tools';
 matchTools.innerHTML = '<button id="btn-spectate-pause" class="ghost" aria-pressed="false">暂停观战</button><label id="spectate-speed-label">观战速度<select id="spectate-speed" aria-label="观战速度"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option></select></label><button id="btn-export-log" class="ghost">导出战报</button><span class="save-status" aria-live="polite"></span>';
@@ -463,11 +474,16 @@ function readSave() {
     return { ...saved, game };
   } catch (_) { return null; }
 }
-function refreshResume() { resumeButton.classList.toggle('hidden', !readSave()); }
+function readLastMatch(){try{const saved=JSON.parse(localStorage.getItem(LAST_KEY));if(saved?.version!==1||!saved.cfg)return null;const game=TW.deserializeGame(saved.game);if(!game.over||game.players?.length!==2||!Array.isArray(game.log)||![-1,0,1].includes(game.winner))return null;return {...saved,game};}catch(_){return null;}}
+function refreshResume() { resumeButton.classList.toggle('hidden', !readSave());lastButton.classList.toggle('hidden',!readLastMatch()); }
 function saveMatch() {
   const status = matchTools.querySelector('.save-status');
+  if(reviewingMatch){status.textContent='已结束 · 查看上局';return;}
   try {
-    if (G.over) { localStorage.removeItem(SAVE_KEY); status.textContent = '对局结束'; return; }
+    if (G.over) {
+      if(archivedGame!==G){localStorage.setItem(LAST_KEY,JSON.stringify({version:1,cfg,game:TW.serializeGame(G),rankResult:localRankResult,finishedAt:Date.now()}));archivedGame=G;}
+      localStorage.removeItem(SAVE_KEY);status.textContent='对局与日志已保留';return;
+    }
     localStorage.setItem(SAVE_KEY, JSON.stringify({ version:1, cfg, game:TW.serializeGame(G),trainingReplay }));
     status.textContent = '进度已保存';
   } catch (_) { status.textContent = '无法保存：浏览器存储不可用'; }
@@ -477,7 +493,7 @@ function updateMatchTools() {
   $('#local-rank-match').classList.toggle('hidden',!ranked);
   if(ranked) {
     $('#local-rank-match').innerHTML=`<span>人机排位 · ${Rank.progress(readRank()).name} · 对手 ${cfg.rankMatch.opponent.rating} 分</span><button id="btn-local-resign" class="ghost" ${G.over?'disabled':''}>认输并结算</button>`;
-    $('#btn-local-resign').onclick=()=>{cancelAI();trainingReplay=null;G.over=true;G.phase='over';G.step='over';G.winner=1;G.result='win';G.log.push('你主动认输');render();};
+    $('#btn-local-resign').onclick=()=>{cancelAI();TW_FX.reset();trainingReplay=null;G.over=true;G.phase='over';G.step='over';G.winner=1;G.result='win';G.endReason={code:'resign',text:'你主动认输，本局按认输结算。'};G.log.push('你主动认输');render();};
   }
   const watching = cfg.mode === 'ai' && !G.over;
   $('#btn-spectate-pause').classList.toggle('hidden', !watching);
@@ -490,6 +506,7 @@ resumeButton.onclick = async () => {
   const saved = readSave();
   if (!saved) { refreshResume(); toast('存档不可用，请开始新对局'); return; }
   cancelAI(); TW_FX.reset(); cfg = saved.cfg; G = saved.game;
+  reviewingMatch=false;resultDismissed=false;resultWaitFor=null;
   trainingReplay=window.TWTraining?.enabled()?saved.trainingReplay || null:null;
   localRankResult=null;
   spectatorPaused = cfg.mode === 'ai'; _prevHp[0] = _prevHp[1] = -1; _lastLogLen = 0;
@@ -500,6 +517,24 @@ resumeButton.onclick = async () => {
   $('#btn-back').classList.remove('hidden'); $('#game').classList.remove('hidden');
   render(); scheduleAI(); toast('已继续上次对局');
 };
+lastButton.onclick=()=>{
+  const saved=readLastMatch();if(!saved){refreshResume();return;}
+  cancelAI();TW_FX.reset();cfg=saved.cfg;G=saved.game;trainingReplay=null;localRankResult=saved.rankResult||null;
+  reviewingMatch=true;resultDismissed=true;_prevHp[0]=_prevHp[1]=-1;_lastLogLen=0;
+  $('#menu').classList.add('hidden');$('#ban').classList.add('hidden');$('#game').classList.remove('hidden');$('#btn-back').classList.remove('hidden');
+  render();$('#log').scrollIntoView({block:'center'});$('#log').scrollTop=$('#log').scrollHeight;
+};
+window.addEventListener('tw:fx-busy',()=>{if(G&&!$('#game').classList.contains('hidden'))renderControls();});
+
+// Recover the last completed desktop/mobile game after upgrading an older build.
+async function recoverLastRecordedMatch(){
+  if(readLastMatch()||!window.TWDesktopTraining)return;
+  try {await window.TWTraining?.ready();const data=await TWDesktopTraining.request({op:'export'}),record=data.records?.at(-1);if(!record||readLastMatch())return;
+    const game=window.__TWReplay.reconstruct(record,g=>{g.searchOnly=false;});game.players[0].name='你';game.players[1].name='AI';
+    localStorage.setItem(LAST_KEY,JSON.stringify({version:1,cfg:{mode:'pve',diff:record.difficulty||'normal'},game:TW.serializeGame(game),finishedAt:record.collectedAt||Date.now()}));refreshResume();
+  }catch(_){}
+}
+recoverLastRecordedMatch();
 $('#btn-spectate-pause').onclick = () => {
   spectatorPaused = !spectatorPaused; cancelAI(); updateMatchTools(); renderControls();
   if (!spectatorPaused) scheduleAI();
@@ -510,6 +545,7 @@ $('#spectate-speed').onchange = (event) => {
 $('#btn-export-log').onclick = () => {
   if (!G) return;
   const content = '唐五 · 对局战报\n' + G.players.map(p => p.name).join(' vs ') + '\n\n' + G.log.join('\n');
+  if(window.TWDesktopTraining?.export){window.TWDesktopTraining.export(content,'tangwu-battle-report.txt');return;}
   const url = URL.createObjectURL(new Blob([content], { type:'text/plain;charset=utf-8' }));
   const link = document.createElement('a'); link.href = url; link.download = '唐五-战报.txt';
   document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);

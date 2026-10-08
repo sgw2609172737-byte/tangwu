@@ -1,0 +1,11 @@
+html { -webkit-text-size-adjust:100%; }
+body { overscroll-behavior-y:none; }
+button,a,input,select { touch-action:manipulation; }
+@media (max-width:480px) {
+  header { gap:8px; padding:12px; }
+  .header-btns { gap:6px; }
+  .header-btns button,.header-btns a { min-height:40px; }
+  .seg button { min-height:46px; }
+  .training-choice { min-height:44px; align-items:center; }
+  .training-choice input { margin-top:0; }
+}

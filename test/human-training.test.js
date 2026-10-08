@@ -43,6 +43,6 @@ function fixtureId(validation){for(let n=0;;n++){const id='human-fixture-'+n.toS
   execFileSync(process.execPath,[path.join(__dirname,'../scripts/import-human.js'),'--input',input,'--out',out,'--simulations','4'],{stdio:'pipe'});
   const summary=JSON.parse(fs.readFileSync(path.join(out,'summary.json')));assert.equal(summary.games,2);assert.equal(summary.rejected,1);
   const games=fs.readFileSync(path.join(out,'games-human.jsonl'),'utf8').trim().split('\n').map(JSON.parse);
-  for(const g of games)for(const s of g.samples){assert.equal(s.z,g.winner===s.actor?1:-1);assert.equal(s.x.length,232);assert.equal(s.valueWeight,1);assert.ok(Math.abs(s.pi.reduce((a,b)=>a+b,0)-1)<1e-5);s.pi.forEach((v,i)=>assert.ok(v===0||s.mask.includes(i)));}
+  for(const g of games)for(const s of g.samples){assert.equal(s.z,g.winner<0?0:g.winner===s.actor?1:-1);assert.equal(s.x.length,232);assert.equal(s.valueWeight,1);assert.ok(Math.abs(s.pi.reduce((a,b)=>a+b,0)-1)<1e-5);s.pi.forEach((v,i)=>assert.ok(v===0||s.mask.includes(i)));}
   console.log('  ✓ 人类对局复盘为真实胜负、合法MCTS策略目标和整局验证种子，可供PyTorch直接读取');
 })().catch(e=>{console.error(e);process.exitCode=1;});

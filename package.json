@@ -7,6 +7,7 @@
     "start": "node server.js",
     "build:dist": "node scripts/build-dist.js",
     "build:electron": "node desktop/build.js",
+    "build:android": "powershell -NoProfile -ExecutionPolicy Bypass -File android/build.ps1",
     "test": "node test/engine.test.js && node test/ai-tactics.test.js && node test/ai-expert.test.js && node test/learning.test.js && node test/ranked.test.js && node test/human-training.test.js && node test/local-training.test.js && node test/visual-events.test.js && node test/rules-revision.test.js && node test/e2e.js && node test/vercel.test.js && node test/vercel-ranked.test.js && node test/vercel-human.test.js",
     "benchmark:ai": "node scripts/benchmark-ai.js",
     "ai:train": "powershell -NoProfile -ExecutionPolicy Bypass -File train-ai.ps1",

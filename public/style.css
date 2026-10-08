@@ -186,6 +186,42 @@ svg.card-svg { width:100%; height:100%; display:block; }
 .skill-card:active:not(:disabled) { transform:translateY(1px) scale(.985); }
 #battle-fx { position:fixed; inset:0; z-index:55; overflow:hidden; pointer-events:none; contain:strict; }
 #battle-fx>div { position:absolute; pointer-events:none; }
+.cast-scene { inset:0; width:100%; height:100%; perspective:1000px; --fx-color:#d8c29d; }
+.cast-vignette { position:absolute; inset:0; background:radial-gradient(ellipse at 50% 42%,#08111d10 8%,#08111d75 75%); }
+.cast-face { position:absolute; left:var(--cast-x); top:var(--cast-y); width:210px; height:284px; border:1px solid #e9d5b080; border-radius:15px; padding:9px; overflow:hidden; transform-style:preserve-3d; background:linear-gradient(145deg,#384b60,#152337 48%,#0b1524); box-shadow:0 28px 80px #0009,0 0 55px color-mix(in srgb,var(--fx-color) 25%,transparent),inset 0 0 0 3px #080d18,inset 0 0 0 4px #e9d5b030; }
+.cast-face::after { content:""; position:absolute; inset:5px; border:1px solid #d8c29d45; border-radius:10px; pointer-events:none; }
+.cast-face-art { height:218px; border-radius:9px; overflow:hidden; background:#101c2c; }
+.cast-face-art svg { width:100%; height:100%; display:block; }
+.cast-cost { position:absolute; left:16px; top:16px; width:34px; height:45px; display:flex; flex-direction:column; align-items:center; justify-content:center; border:1px solid #e9d5b080; border-radius:5px; background:#101827e8; color:#f0dfbe; font:600 23px/1 Georgia,serif; }
+.cast-cost small { margin-top:4px; font:9px/1 sans-serif; letter-spacing:2px; }
+.cast-face-title { display:flex; align-items:center; justify-content:space-between; padding:13px 8px 5px; }
+.cast-face-title small { color:var(--fx-color); font-size:10px; letter-spacing:3px; }
+.cast-face-title strong { color:#f2e6cf; font:600 21px/1.1 "KaiTi","STKaiti",serif; letter-spacing:2px; }
+.cast-foil { position:absolute; inset:-30%; background:linear-gradient(110deg,transparent 25%,#fff1 42%,#f8edcc80 49%,#fff2 55%,transparent 70%); mix-blend-mode:screen; }
+.cast-orbit { position:absolute; left:var(--cast-x); top:calc(var(--cast-y) - 20px); width:410px; height:410px; transform:translate(-50%,-50%); }
+.cast-orbit svg { width:100%; height:100%; fill:none; stroke:var(--fx-color); stroke-width:.65; }
+.cast-orbit circle:nth-child(2) { stroke-dasharray:2 11; stroke-width:2; opacity:.75; }
+.cast-caption { position:absolute; left:var(--cast-x); top:calc(var(--cast-y) + 143px); width:min(340px,86vw); display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; text-shadow:0 2px 10px #000; }
+.cast-caption>span { color:var(--fx-color); font-size:10px; letter-spacing:4px; }
+.cast-caption strong { font:600 25px/1.2 "KaiTi","STKaiti",serif; color:#f3e8d2; letter-spacing:5px; }
+.cast-caption>small { color:#bdc8d5; font-size:11px; line-height:1.6; max-width:300px; }
+.cast-slash { position:absolute; left:var(--cast-x); top:var(--cast-y); height:5px; transform-origin:left center; background:linear-gradient(90deg,transparent,var(--fx-color) 45%,#fff 80%,transparent); box-shadow:0 0 15px var(--fx-color); }
+.cast-impact { position:absolute; left:var(--hit-x); top:var(--hit-y); width:210px; height:210px; transform:translate(-50%,-50%); }
+.cast-impact i { position:absolute; inset:8%; border:1px solid var(--fx-color); border-radius:50%; box-shadow:0 0 20px color-mix(in srgb,var(--fx-color) 50%,transparent),inset 0 0 22px color-mix(in srgb,var(--fx-color) 15%,transparent); }
+.cast-impact b { position:absolute; inset:28%; background:radial-gradient(circle,#fff8,var(--fx-color) 20%,transparent 68%); border-radius:50%; }
+.cast-motes { position:absolute; left:var(--hit-x); top:var(--hit-y); }
+.cast-motes i { position:absolute; width:var(--size); height:calc(var(--size)*2.4); background:var(--fx-color); border-radius:1px; box-shadow:0 0 8px var(--fx-color); transform-origin:center; }
+.cast-kind-fire .cast-impact b { inset:5% 18%; border-radius:80% 20% 60% 40%; background:radial-gradient(ellipse at 50% 70%,#fff3ae,#ff9d44 24%,#bf421860 48%,transparent 68%); }
+.cast-kind-frost .cast-impact i { border-radius:0; rotate:45deg; background:linear-gradient(135deg,#a3e1f405,#a3e1f428); }
+.cast-kind-shield .cast-impact i,.cast-kind-summon .cast-impact i { clip-path:polygon(50% 0,95% 25%,95% 75%,50% 100%,5% 75%,5% 25%); border-radius:0; background:linear-gradient(135deg,transparent,color-mix(in srgb,var(--fx-color) 18%,transparent)); }
+.cast-kind-sniper .cast-impact i { border:2px solid var(--fx-color); background:linear-gradient(90deg,transparent 49%,#ffd997 49%,#ffd997 50%,transparent 50%),linear-gradient(0deg,transparent 49%,#ffd997 49%,#ffd997 50%,transparent 50%); }
+.cast-ultimate .cast-face { box-shadow:0 28px 100px #000b,0 0 75px #ffd99765; border-color:#ffe2a4; }
+.cast-ultimate .cast-impact { width:280px; height:280px; }
+@media(max-width:480px) { .cast-face { width:170px; height:232px; }.cast-face-art { height:172px; }.cast-orbit { width:310px; height:310px; }.cast-caption { top:calc(var(--cast-y) + 120px); }.cast-caption strong { font-size:22px; }.cast-face-title strong { font-size:18px; }.cast-caption>small { font-size:10px; }.cast-impact { width:170px; height:170px; } }
+.result-reason { margin:14px 0; padding:12px 14px; border:1px solid var(--line); border-radius:9px; background:#101827; color:#d5cdbb; font-size:13px; line-height:1.7; }
+.review-note { color:var(--dim); font-size:12px; }
+.review-players { display:flex; justify-content:space-between; gap:12px; color:var(--gold); padding:8px 0 16px; font-size:13px; }
+.review-log { max-height:55vh; overflow:auto; background:#101827; border:1px solid var(--line); border-radius:9px; padding:12px; text-align:left; }
 .cast-ghost { width:64px; height:64px; border:1px solid var(--fx-color); border-radius:12px; overflow:hidden; box-shadow:0 0 20px color-mix(in srgb,var(--fx-color) 50%,transparent); background:#10232e; }
 .cast-label { white-space:nowrap; color:var(--fx-color); border:1px solid color-mix(in srgb,var(--fx-color) 55%,transparent); background:#0b1d29ee; padding:5px 14px; border-radius:20px; font-size:13px; font-weight:700; box-shadow:0 4px 18px #0004; }
 .effect-burst { transform:translate(-50%,-50%); }

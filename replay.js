@@ -7,7 +7,7 @@
   function create(g,difficulty='normal') {
     if(g.phase!=='playing' || g.over || g.actionsUsed!==0 || g.step!=='awaitAdd') return null;
     const id=typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():require('node:crypto').randomUUID();
-    return {version:1,id,turn:g.turn,bans:[...g.banPicks],difficulty,actions:[],truncated:false};
+    return {version:1,rulesVersion:g.rulesVersion||2,id,turn:g.turn,bans:[...g.banPicks],difficulty,actions:[],truncated:false};
   }
   function perform(g,a,replay) {
     const actor=g.controller>=0?g.controller:g.turn;
@@ -22,8 +22,9 @@
     return replay && !replay.truncated && g.over?{...replay,winner:g.winner}:null;
   }
   function reconstruct(record,onStep) {
+    if(record?.rulesVersion!==undefined && ![1,2].includes(record.rulesVersion))throw Error('对局规则版本无效');
     if(record?.version!==1 || typeof record.id!=='string' || !/^[a-zA-Z0-9-]{8,64}$/.test(record.id) || ![0,1].includes(record.turn) || !Array.isArray(record.bans) || record.bans.length!==2 || !record.bans.every(id=>typeof id==='string'&&skillIds.has(id)) || !Array.isArray(record.actions) || record.actions.length>MAX_STEPS || record.truncated || ![-1,0,1].includes(record.winner)) throw Error('对局记录不完整');
-    const g=E.createGame(['人类','AI']);g.searchOnly=true;g.turn=record.turn;g.players[g.turn].hp=20;g.players[1-g.turn].hp=21;g.phase='banning';
+    const g=E.createGame(['人类','AI']);g.rulesVersion=record.rulesVersion||1;g.searchOnly=true;g.turn=record.turn;g.players[g.turn].hp=20;g.players[1-g.turn].hp=21;g.phase='banning';
     for(let i=0;i<2;i++) {const r=E.submitBan(g,i,record.bans[i]);if(r?.err) throw Error('禁用记录无效');}
     for(const row of record.actions) {
       if(!Array.isArray(row) || g.over || row[0]!== (g.controller>=0?g.controller:g.turn)) throw Error('行动顺序无效');
@@ -38,7 +39,7 @@
   }
   function clean(record) {
     reconstruct(record);
-    return {version:1,id:record.id,turn:record.turn,bans:[...record.bans],difficulty:['easy','normal','hard','expert','learned'].includes(record.difficulty)?record.difficulty:'normal',actions:record.actions.map(a=>[...a]),winner:record.winner};
+    return {version:1,...(record.rulesVersion?{rulesVersion:record.rulesVersion}:{}),id:record.id,turn:record.turn,bans:[...record.bans],difficulty:['easy','normal','hard','expert','learned'].includes(record.difficulty)?record.difficulty:'normal',actions:record.actions.map(a=>[...a]),winner:record.winner};
   }
   const api={MAX_STEPS,create,perform,finish,reconstruct,clean};
   if(typeof module!=='undefined'&&module.exports) module.exports=api;

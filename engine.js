@@ -8,7 +8,7 @@ for (const d of Object.keys(__SKILLS)) for (const s of __SKILLS[d]) __ALL_SKILLS
 
 const CAP_E = 11;          // 费用上限
 const MAX_ACTIONS = 50;    // 每回合行动次数上限（含再次行动）
-const STALEMATE_TURNS = 24; // 连续这么多回合双方都未受伤 → 按血量判定胜负（防止无限拖延/死循环）
+const STALEMATE_TURNS = 24; // 新规则：连续24回合无人出技能且无人受伤，才按和棋结束。
 
 // ---------- 基础工具 ----------
 function log(g, msg) {
@@ -65,6 +65,7 @@ function mkPlayer(name, hp) {
 function createGame(names) {
   const turn = Math.random() < 0.5 ? 0 : 1; // 先手随机
   return {
+    rulesVersion: 2,
     phase: 'waiting',                                // waiting | playing | over
     players: [
       mkPlayer(names[0] || '玩家1', turn === 0 ? 20 : 21), // 先手20血，后手21血
@@ -84,18 +85,21 @@ function createGame(names) {
     over: false, result: null, winner: -1,
     noDamageTurns: 0,                                // 连续无人受伤的回合数（僵局裁定）
     damagedThisTurn: false,                          // 本回合是否有人受伤
+    actedThisTurn: false, noActionTurns: 0,
+    endReason: null,
   };
 }
 
 // ---------- 胜负 ----------
-function endGame(g, winnerIdx) {
+function endGame(g, winnerIdx, reason = null) {
   if (g.over) return;
   g.over = true;
   g.phase = 'over';
   g.step = 'over';
   g.winner = winnerIdx;
   g.result = winnerIdx === -1 ? 'draw' : 'win';
-  log(g, winnerIdx === -1 ? '🤝 双方同时倒下，平局！' : `🏆 ${g.players[winnerIdx].name} 获胜！`);
+  g.endReason = reason || {code:'hp-zero',text:winnerIdx===-1?'双方生命同时归零。':`${g.players[1-winnerIdx].name} 的生命归零。`};
+  log(g, winnerIdx === -1 ? (reason ? '🤝 本局平局！' : '🤝 双方同时倒下，平局！') : `🏆 ${g.players[winnerIdx].name} 获胜！`);
 }
 
 function checkDeaths(g) {
@@ -176,6 +180,7 @@ function startTurn(g) {
   p.dealtThisTurn = false;
   p.turnDmg = 0;
   g.damagedThisTurn = false;
+  g.actedThisTurn = false;
   // 鄙视：对方回合前，若其技能手数字更大
   if (o.bishi && o.skill > p.skill) {
     gain(g, o, 1); loseE(g, p, 1);
@@ -241,22 +246,32 @@ function endTurn(g) {
     if (p.duming.turnsLeft <= 0) {
       log(g, `☠ 赌命时间到！${p.name} 血量清零，直接败北`);
       p.hp = 0;
-      endGame(g, 1 - idx(g, p));
+      endGame(g, 1 - idx(g, p), {code:'duming-timeout',text:`${p.name} 的赌命倒计时耗尽，按技能规则直接败北；假人无法阻止。`});
       return;
     }
   }
   if (g.over) return;
-  // 僵局裁定：连续多回合双方都未受伤 → 按血量判定胜负，避免无限拖延（如反复幻雾互锁）
+  // Keep v1 replay validation exact. New matches never award a win just for HP.
+  if (g.rulesVersion === 1) {
   if (!g.damagedThisTurn) {
     g.noDamageTurns = (g.noDamageTurns || 0) + 1;
     if (g.noDamageTurns >= STALEMATE_TURNS) {
       const d = g.players[0].hp - g.players[1].hp;
       log(g, `⏱ 连续 ${STALEMATE_TURNS} 回合无人受伤，按血量判定胜负`);
-      endGame(g, d > 0 ? 0 : (d < 0 ? 1 : -1));
+      endGame(g, d > 0 ? 0 : (d < 0 ? 1 : -1), {code:'legacy-stalemate',text:'旧版规则：连续24回合无人受伤，按血量裁定。'});
       return;
     }
   } else {
     g.noDamageTurns = 0;
+  }
+  } else {
+    g.noActionTurns = !g.damagedThisTurn && !g.actedThisTurn ? (g.noActionTurns || 0) + 1 : 0;
+    if (g.noActionTurns >= STALEMATE_TURNS) {
+      const text=`连续 ${STALEMATE_TURNS} 回合未释放技能且无人受伤，本局和棋；不按生命或假人数量判负。`;
+      log(g, '⏱ ' + text);
+      endGame(g, -1, {code:'no-action-draw',text});
+      return;
+    }
   }
   g.turn = 1 - g.turn;
   startTurn(g);
@@ -327,6 +342,7 @@ function actSkill(g, skillIdx, opts = {}) {
   if (sk.id === 'duming' && (p.dumingUsed || p.duming.active)) return { err: '赌命每局只能使用一次' };
   const handDigits = [p.energy % 10, p.skill, o.energy % 10, o.skill];
   p.energy -= p.skill;
+  g.actedThisTurn = true;
   g.actionsUsed++;
   p.streak++; o.streak = 0; // 连出技能计数：自己+1，对方归零（解锁对方）
   log(g, `🎯 ${p.name} 释放了【${sk.name}】（消耗 ${p.skill}$）`);
@@ -428,6 +444,8 @@ function publicState(g, youIdx) {
     over: g.over,
     result: g.result,
     winner: g.winner,
+    endReason: g.endReason || null,
+    noActionTurns: g.noActionTurns || 0,
     banned: (g.banned || []).slice(),
     banPicks: (g.banPicks || [null, null]).map((p) => !!p),
     players: g.players.map((p) => ({
@@ -450,6 +468,7 @@ function serializeGame(g) {
 }
 function deserializeGame(json) {
   const g = JSON.parse(json);
+  if (!g.rulesVersion) g.rulesVersion = 2;
   g.chainDigits = new Set(Array.isArray(g.chainDigits) ? g.chainDigits : []);
   for (const p of g.players) {
     p.dummy.reserve = Array.isArray(p.dummy.reserve) ? p.dummy.reserve : [];

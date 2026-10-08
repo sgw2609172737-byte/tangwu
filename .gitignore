@@ -17,3 +17,12 @@ public/debug-hands.html
 /data/
 /output/training/
 __pycache__/
+
+# Android generated assets, local SDK paths, signing secrets and APK outputs
+/android/.gradle/
+/android/local.properties
+/android/keystore.properties
+/android/app/build/
+/android/build/
+/android/app/src/main/assets/site/
+/output/android/

@@ -287,6 +287,13 @@ node test/live-poll.js     # 活体测试（轮询版，模拟新版客户端协
 - `npm run build:dist` 同步可托管或双击打开的本地静态版本，首页为 `dist/index.html`。构建不会发布线上网站。
 - 功能回归：`npm test`；浏览器验证：`python test/ui-refinement.py`、`python test/ui-smoke.py`、`python test/ui-effects.py`，截图输出至 `output/qa/`。
 
+## 2026-10-08 对局演出、终局回看与 Android
+
+- 每张技能卡有独立的两秒演出：抬牌、金属扫光、展示、飞出与分类命中效果。页头「出牌：开/关」保存设置；减少动画会关闭演出。人机等待演出完成后再行动，终局结果等待最后一张卡播放完毕。
+- 结果页显示结束原因，可以返回棋局阅读完整保留日志；菜单提供「查看上局对局与日志」，刷新后仍可进入只读回看，不重复结算积分或收录训练样本。联机大厅也保存最近一局日志。
+- 修正旧的连续 24 回合未受伤即按血量判胜规则。新规则只有连续 24 回合没有合法出招、也没有伤害时才判平局；召唤、治疗、防御等出招都会重置计数。历史训练棋谱保留原规则版本，仍可验证和回放。
+- `npm run build:android` 生成已签名安装包 `output/android/TangWu-Android.apk`。Android 8.0 及以上支持离线人机、本地双人、AI 观战及人机排位；联网玩法打开 Vercel 网页。手机训练记录需主动开启，可通过系统保存界面导出。构建及签名说明见 [android/README.md](android/README.md)。
+
 ## 本地版 / 人机对战 / 打包 exe
 
 `npm run build:electron` 将当前本地页面、AI 模型及训练记录模块组装到 `../tangwu-electron/app`；进入该目录运行 `npm run dist` 生成便携 EXE。原来的 `node tools/build-electron.js` 入口仍兼容。

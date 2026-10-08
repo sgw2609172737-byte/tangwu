@@ -10,7 +10,7 @@
   if(!anchor)return;anchor.append(panel);
   const checkbox=panel.querySelector('#training-enabled'),status=panel.querySelector('#training-status');checkbox.checked=enabled;
   if(desktop){for(const id of ['training-connect','training-copy','training-restore'])panel.querySelector('#'+id).hidden=true;
-    panel.querySelector('.training-help:last-child').textContent='本机保留最近 500 局，训练程序会自动读取。关闭开关会停止接收新记录。';}
+    panel.querySelector('.training-help:last-child').textContent=desktop.platform==='android'?'手机保留最近 500 局，可导出给电脑训练。关闭开关会停止接收新记录。':'本机保留最近 500 局，训练程序会自动读取。关闭开关会停止接收新记录。';}
   const live=document.createElement('p');live.id='training-live';live.className='training-live hidden';live.setAttribute('role','status');document.querySelector('#turn-banner')?.insertAdjacentElement('afterend',live);
   function stored(){try{return JSON.parse(localStorage.getItem(PENDING)||'[]');}catch(_){return [];}}
   function savePending(records){localStorage.setItem(PENDING,JSON.stringify(records.slice(-5)));}
@@ -29,7 +29,7 @@
   }
   function startConfigure(){last=last.catch(()=>{}).then(configure).catch(e=>show(e.message));return last;}
   checkbox.onchange=()=>{enabled=checkbox.checked;try{localStorage.setItem(PREF,enabled?'1':'0');}catch(_){}startConfigure();};
-  function download(data,name){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+  function download(data,name){if(desktop?.export){desktop.export(data,name);return;}const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   async function retry(){
     if(!(online||desktop)||!enabled||(!desktop&&!identity))return;
     for(const record of stored()){

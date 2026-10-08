@@ -34,6 +34,7 @@ test('初始状态：能量2/技能1，先手20血后手21血，开局+1能量',
   assert.strictEqual(p.energy, 3);
   assert.strictEqual(p.skill, 1);
   assert.strictEqual(g.step, 'awaitAdd');
+  assert.strictEqual(g.rulesVersion, 2);
 });
 
 test('首回合相加：加对方能量手(2)→3，加对方技能手(1)→2', () => {
@@ -493,24 +494,43 @@ test('赌命：施放不重置"整局限一次"的额外行动标记', () => {
   assert.strictEqual(p.dumingExtraUsed, true); // 标记不被重置
 });
 
-test('僵局裁定：连续24回合无人受伤 → 按血量判定胜负', () => {
+test('连续24回合只空过且无人受伤应和棋，血量差不能判负', () => {
   const g = mk();
-  g.noDamageTurns = 23;
+  g.noActionTurns = 23;
   g.damagedThisTurn = false;
   g.players[0].hp = 20; g.players[1].hp = 25;
-  skipTurn(g); // 结束当前回合 → 计数到24 → 判胜负
+  skipTurn(g);
   assert.strictEqual(g.over, true);
-  assert.strictEqual(g.winner, 1); // 血量高者胜
+  assert.strictEqual(g.winner, -1);
+  assert.strictEqual(g.endReason.code, 'no-action-draw');
   assert.ok(g.log.some((t) => /无人受伤/.test(t)));
 });
 
 test('僵局裁定：有人受伤时重置计数，不误判', () => {
   const g = mk();
-  g.noDamageTurns = 23;
+  g.noActionTurns = 23;
   g.damagedThisTurn = true; // 本回合有人受伤
   skipTurn(g);
   assert.strictEqual(g.over, false);
-  assert.strictEqual(g.noDamageTurns, 0); // 计数归零
+  assert.strictEqual(g.noActionTurns, 0);
+});
+
+test('禁用98K且拥有多个假人时，召唤假人不能触发旧版血量判负', () => {
+  const g=mk(), p=g.players[g.turn];
+  g.banned=['jiubaK'];p.hp=4;g.players[1-g.turn].hp=14;
+  p.tanghua=true;p.dummy={alive:true,hp:1,castBefore:true,reserve:Array(12).fill(1)};
+  g.noDamageTurns=23;g.noActionTurns=23;
+  force(g,0);act(g,'jiaren');
+  assert.strictEqual(g.over,false);
+  assert.strictEqual(p.dummy.reserve.length,13);
+  assert.strictEqual(g.noActionTurns,0);
+});
+
+test('旧版重放显式保留v1裁定以兼容已保存训练记录', () => {
+  const g=mk();g.rulesVersion=1;g.noDamageTurns=23;
+  g.players[0].hp=4;g.players[1].hp=14;
+  skipTurn(g);assert.strictEqual(g.winner,1);
+  assert.strictEqual(g.endReason.code,'legacy-stalemate');
 });
 
 console.log(`\n通过 ${passed} 项测试${process.exitCode ? '（有失败）' : ''}`);

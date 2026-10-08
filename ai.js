@@ -103,7 +103,8 @@
   function positionKey(g) {
     // Only rule state belongs in the table: names, animation and logs never affect a move.
     return JSON.stringify([g.turn, g.step, g.controller, g.chainCount, [...g.chainDigits].sort(),
-      g.actionsUsed, g.pendingDumingAgain, g.noDamageTurns, g.damagedThisTurn, g.banned,
+      g.actionsUsed, g.pendingDumingAgain, g.rulesVersion, g.noDamageTurns, g.damagedThisTurn,
+      g.noActionTurns, g.actedThisTurn, g.banned,
       g.over, g.result, g.winner, g.players.map(p => Object.entries(p).filter(([k]) => k !== 'name').map(([,v]) => v))]);
   }
   function checkBudget(ctx) {

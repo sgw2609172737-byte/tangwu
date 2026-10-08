@@ -64,7 +64,8 @@
       for(let n=0;n<10;n++) f.push(Number(n===(p.skill+o.energy%10)%10 || n===(p.skill+o.skill)%10));
     }
     f.push(Number(g.turn===perspective),Number(g.controller>=0),Number(g.step==='awaitAdd'),Number(g.step==='awaitAction'),
-      Math.min(4,g.chainCount)/4,g.chainDigits.size/4,g.actionsUsed/50,Number(g.pendingDumingAgain),g.noDamageTurns/24,Number(g.damagedThisTurn));
+      Math.min(4,g.chainCount)/4,g.chainDigits.size/4,g.actionsUsed/50,Number(g.pendingDumingAgain),
+      (g.rulesVersion===1?g.noDamageTurns:g.noActionTurns||0)/24,Number(g.damagedThisTurn));
     for(const id of ['yi','san','si','ba']) f.push(Number(g.chainDigits.has(id)));
     for(const id of SKILL_IDS) f.push(Number(g.banned.includes(id)));
     return Float32Array.from(f,v=>Math.max(-8,Math.min(8,Number.isFinite(v)?v:0)));

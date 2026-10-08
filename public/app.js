@@ -7,6 +7,19 @@ let me = (() => { try { return JSON.parse(localStorage.getItem('tangwu_v1') || '
   || { name: '', roomCode: '', token: '', idx: -1 };
 let pollTimer = null;
 let toastTimer = null;
+const LAST_ONLINE='tangwu_last_online_v1';
+let resultDismissed=false,resultWaitRoom='';
+const lastOnlineButton=document.createElement('button');lastOnlineButton.id='btn-last-online';lastOnlineButton.className='ghost';lastOnlineButton.textContent='查看上局日志';
+document.querySelector('#btn-create-ai')?.insertAdjacentElement('afterend',lastOnlineButton);
+function refreshLastOnline(){try{lastOnlineButton.hidden=!JSON.parse(localStorage.getItem(LAST_ONLINE)||'null')?.over;}catch(_){lastOnlineButton.hidden=true;}}
+lastOnlineButton.onclick=()=>{
+  let saved;try{saved=JSON.parse(localStorage.getItem(LAST_ONLINE));}catch(_){return;}if(!saved?.over)return;
+  const modal=document.createElement('div');modal.className='modal';modal.id='last-online-modal';
+  modal.innerHTML='<div class="modal-box wide"><div class="modal-head"><h2>上局对局日志</h2><button class="ghost" aria-label="关闭上局日志">关闭</button></div>'+`<p class="result-reason">${esc(saved.endReason?.text||'对局已结束。以下保留了本局日志。')}</p><div class="review-players">${saved.players.map(p=>`<span>${esc(p.name)} · ${p.hp} 血</span>`).join('')}</div><div class="review-log">${saved.log.map(line=>`<div class="log-line">${esc(line)}</div>`).join('')}</div></div>`;
+  document.body.appendChild(modal);modal.querySelector('button').onclick=()=>modal.remove();modal.onclick=e=>{if(e.target===modal)modal.remove();};
+  const log=modal.querySelector('.review-log');log.scrollTop=log.scrollHeight;
+};
+refreshLastOnline();
 
 function save() { localStorage.setItem('tangwu_v1', JSON.stringify(me)); }
 
@@ -29,7 +42,7 @@ function toast(msg) {
 
 let sending = false; // 防抖：上一次请求未返回前忽略重复点击
 async function send(body) {
-  if (sending) return;
+  if (sending || (['add','act','pass'].includes(body.type) && TW_FX.busy())) return;
   sending = true;
   const ctl = $('#controls');
   ctl.classList.add('sending');
@@ -49,6 +62,7 @@ async function send(body) {
 }
 
 function setMe(d) {
+  resultDismissed=false;resultWaitRoom='';
   me = { name: d.name, roomCode: d.roomCode, token: d.token, idx: d.playerIdx, ranked:!!d.ranked };
   save();
   connectStream();
@@ -133,6 +147,7 @@ function clearSession() {
   me = { name: '', roomCode: '', token: '', idx: -1 };
   save();
   state = null;
+  resultDismissed=false;resultWaitRoom='';refreshLastOnline();
   render();
 }
 
@@ -324,14 +339,15 @@ function renderGame() {
   $('#turn-banner').classList.toggle('aiwait', !!state.ai && actor !== myIdx && !state.over);
   renderControls(actor);
   renderLog();
-  renderResult();
   const cards = []; cards[me.idx] = $('#me-card'); cards[1 - me.idx] = $('#opp-card');
   TW_FX.sync(state, cards, state.catalog);
+  renderResult();
 }
 
 function renderControls(actor) {
   const el = $('#controls');
   if (state.over) { el.innerHTML = ''; return; }
+  if (TW_FX.busy()) { el.innerHTML = '<div class="wait-msg">出牌演出中…</div>'; return; }
   const myIdx = me.idx;
   const turnP = state.players[state.turn];       // 本回合出招者（被尤里控制时是被控制者）
   const oppP = state.players[1 - state.turn];    // 对方（相加/公平正义的目标）
@@ -406,7 +422,7 @@ function chooseSkill(skillIdx, actor) {
 let _lastLogKey = '';
 function renderLog() {
   const el = $('#log');
-  const items = state.log.slice(-80); // 只显示最近 80 条，更早的自动裁掉
+  const items = state.log;
   const key = items.length + '|' + (items[items.length - 1] || '');
   if (key === _lastLogKey) return; // 日志无变化，跳过重建
   const stick = el.scrollHeight - el.scrollTop - el.clientHeight < 60; // 本在底部→跟随最新
@@ -428,11 +444,15 @@ function renderLog() {
 
 function renderResult() {
   const modal = $('#result-modal');
-  modal.classList.toggle('hidden', !state.over);
+  if(!state.over){resultDismissed=false;resultWaitRoom='';}
+  modal.classList.toggle('hidden', !state.over || resultDismissed || TW_FX.busy());
   if (!state.over) return;
+  if(TW_FX.busy()&&resultWaitRoom!==me.roomCode){const room=me.roomCode;resultWaitRoom=room;TW_FX.whenIdle().then(()=>{if(state?.over&&me.roomCode===room&&!resultDismissed)renderResult();});}
+  try{localStorage.setItem(LAST_ONLINE,JSON.stringify({over:true,players:state.players,log:state.log,endReason:state.endReason,result:state.result,winner:state.winner}));refreshLastOnline();}catch(_){}
   const myIdx = me.idx;
   $('#result-title').textContent = state.result === 'draw' ? '🤝 平局！' : (state.winner === myIdx ? '🎉 你赢了！' : '💀 你输了');
   $('#result-sub').textContent = state.result === 'draw' ? '本局平局' : `胜者：${state.players[state.winner].name}`;
+  $('#result-reason').textContent=state.endReason?.text||'对局已结束。可以查看本局日志确认最后的结算。';
   if(state.ranked) {
     const r=state.ratingResult?.[myIdx];
     if(r) $('#result-sub').textContent=`${r.reason} · ${r.delta>0?'+':''}${r.delta} 分 · ${r.after} 分 · ${state.rankProfiles[myIdx].rank.name}`;
@@ -451,10 +471,12 @@ $('#btn-create-ai').onclick = doCreateAI;
 $('#btn-join').onclick = doJoin;
 $('#btn-leave').onclick = doLeave;
 $('#btn-result-menu').onclick = doLeave;
+$('#btn-view-log').onclick=()=>{resultDismissed=true;$('#result-modal').classList.add('hidden');$('#log').scrollIntoView({behavior:document.documentElement.dataset.motion==='reduced'?'auto':'smooth',block:'center'});$('#log').scrollTop=$('#log').scrollHeight;};
 $('#btn-rules').onclick = () => $('#rules-modal').classList.remove('hidden');
 $('#btn-rules-close').onclick = () => $('#rules-modal').classList.add('hidden');
 $('#rules-modal').onclick = (e) => { if (e.target === $('#rules-modal')) $('#rules-modal').classList.add('hidden'); };
-$('#result-modal').onclick = (e) => { if (e.target === $('#result-modal')) $('#result-modal').classList.add('hidden'); };
+$('#result-modal').onclick = (e) => { if (e.target === $('#result-modal')) {resultDismissed=true;$('#result-modal').classList.add('hidden');} };
+window.addEventListener('tw:fx-busy',()=>{if(state?.phase==='playing'&&me.idx>=0)renderControls(state.controller>=0?state.controller:state.turn);});
 $('#btn-copy').onclick = () => {
   const link = $('#invite-link').textContent;
   navigator.clipboard.writeText(link).then(() => toast('已复制邀请链接'), () => toast('复制失败，请手动复制'));
