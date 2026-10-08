@@ -102,7 +102,7 @@ const SKILLS = {
   ],
   '3': [
     { id: 'xiaolieyan', name: '小烈焰', desc: '立即3伤；对方回合结束时再造成2伤（可被净化）', star: false, isAttack: true, isDigit: false,
-      run(c) { c.dmg(c.o, 3); c.o.delayed.push({ owner: c.pIdx, dmg: 2, desc: '小烈焰', noBonus: true }); } },
+      run(c) { const hit = c.dmg(c.o, 3); if (hit || !c.modern) c.o.delayed.push({ owner: c.pIdx, dmg: 2, desc: '小烈焰', noBonus: true }); } },
     { id: 'san', name: '三', desc: '数字技能：+2$，获得再次行动', star: false, isAttack: false, isDigit: true, grantsAgain: true,
       run(c) { c.gain(2); } },
     { id: 'hanfeng', name: '寒风', desc: '3伤并使对方-1$', star: false, isAttack: true, isDigit: false,
@@ -131,7 +131,7 @@ const SKILLS = {
       run(c) { c.dmg(c.o, 5); const n = c.p.turnDmg; c.gain(Math.ceil(n / 3)); c.log(`赏金：本回合共${n}伤 → +${Math.ceil(n / 3)}$`); } },
     { id: 'touzi', name: '投资', desc: '费用先+3$再翻倍（封顶11）', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.energy = Math.min(11, c.p.energy + 3); c.p.energy = Math.min(11, c.p.energy * 2); c.log(`投资：费用变为 ${c.p.energy}$`); } },
-    { id: 'wudi', name: '无敌', desc: '免疫下次攻击（并+2血）及附带效果；未触发则一直保留', star: false, isAttack: false, isDigit: false,
+    { id: 'wudi', name: '无敌', desc: '免疫下一段伤害（含灼烧、毒伤、反弹）并+2血；攻击被挡时附带减益也免疫；未触发则保留，不叠加', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.wudi = true; c.log('无敌已就绪'); } },
   ],
   '6': [
@@ -148,16 +148,16 @@ const SKILLS = {
       run(c) { c.healSelf(2); c.o.freeze = Math.max(c.o.freeze, 2); c.log(`冰！：${c.o.name} 被冰封2回合`); } },
   ],
   '7': [
-    { id: 'qibu', name: '七步', desc: '对方每回合结束时-3血；被净化1次降为-2，第2次解除；不触发无敌、不受增伤', star: false, isAttack: false, isDigit: false,
+    { id: 'qibu', name: '七步', desc: '对方每回合结束时3毒伤；净化1次降为2，第2次解除；毒伤可触发无敌，抵挡一次不解除七步；不受增伤', star: false, isAttack: false, isDigit: false,
       run(c) { c.o.qibu = { stage: 1, owner: c.pIdx }; c.log(`七步：${c.o.name} 身中剧毒`); } },
     { id: 'shuangbei', name: '双倍圣水', desc: '此后你每回合额外+1$（可叠加）', star: false, isAttack: false, isDigit: false,
       run(c) { c.p.shuangbei = (c.p.shuangbei || 0) + 1; c.log(`双倍圣水生效（每回合额外+${c.p.shuangbei}$）`); } },
-    { id: 'gongping', name: '公平正义', desc: '去除对方1层正面buff；本回合技能手"跳到7"时改为去除2层（同一buff扣2层，或两个buff各1层）', star: false, isAttack: false, isDigit: false,
+    { id: 'gongping', name: '公平正义', desc: '去除对方1层正面buff；本回合先使用数字技能（一/三/四/八），通过数字连携到7时去除2层（同一buff扣2层，或两个各1层）', star: false, isAttack: false, isDigit: false,
       run(c) {
         const list = positiveBuffs(c.o);
         if (!list.length) { c.log('公平正义：对方没有可去除的正面buff'); return; }
         const pick = (c.opts && c.opts.buffIdx != null && list[c.opts.buffIdx]) ? list[c.opts.buffIdx] : list[0];
-        const maxLayers = c.p.jumped7 ? 2 : 1;
+        const maxLayers = c.dispelLayers;
         const counts = {};
         const take = (key) => { if (removeBuffLayer(c.o, key)) { counts[key] = (counts[key] || 0) + 1; return true; } return false; };
         let layers = 0;
@@ -193,7 +193,7 @@ const SKILLS = {
     { id: 'shipo', name: '识破', desc: '+1血，+6$；清空对方所有备用假人，再造成1伤（无敌可抵挡清除与伤害）', star: false, isAttack: true, isDigit: false,
       run(c) {
         c.healSelf(1); c.gain(6);
-        if (c.o.wudi) { c.o.wudi = false; c.o.hp += 2; c.visual({ kind: 'shield-break', source: 1 - c.pIdx, skillId: 'wudi' }); c.log('识破被无敌抵挡'); return; }
+        if (c.block(c.o)) return;
         const count = c.o.dummy.alive ? 1 + (c.o.dummy.reserve || []).length : 0;
         c.o.dummy.alive = false; c.o.dummy.hp = 0; c.o.dummy.reserve = [];
         c.log(`识破：清除了对方${count}个备用假人`);

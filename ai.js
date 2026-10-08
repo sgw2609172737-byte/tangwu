@@ -19,8 +19,7 @@
     const out = [];
     if (p.streak < 24 && p.energy >= p.skill) {
       (SK.SKILLS[p.skill] || []).forEach((sk, i) => {
-        if (g.banned.includes(sk.id)) return;
-        if (sk.id === 'duming' && (p.dumingUsed || p.duming.active)) return;
+        if (!ENG.canUseSkill(g, sk)) return;
         if (sk.id === 'gongping') {
           const buffs = SK.positiveBuffs(g.players[1 - g.turn]);
           if (buffs.length) { buffs.forEach((b, bi) => out.push({ type: 'act', skillIdx: i, buffIdx: bi })); return; }

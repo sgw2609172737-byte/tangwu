@@ -7,6 +7,7 @@ const __ALL_SKILLS_BY_ID = {};
 for (const d of Object.keys(__SKILLS)) for (const s of __SKILLS[d]) __ALL_SKILLS_BY_ID[s.id] = s;
 
 const CAP_E = 11;          // 费用上限
+const RULES_VERSION = 3;
 const MAX_ACTIONS = 50;    // 每回合行动次数上限（含再次行动）
 const STALEMATE_TURNS = 24; // 新规则：连续24回合无人出技能且无人受伤，才按和棋结束。
 
@@ -28,6 +29,7 @@ function opp(g) { return g.players[1 - g.turn]; }
 function gain(g, p, n) { p.energy = Math.min(CAP_E, p.energy + n); }
 function loseE(g, p, n) { p.energy = Math.max(0, p.energy - n); }
 function heal(g, p, n) { p.hp += n; }
+const currentRules = (g) => g.rulesVersion >= RULES_VERSION;
 
 // ---------- 玩家状态 ----------
 function mkPlayer(name, hp) {
@@ -58,14 +60,14 @@ function mkPlayer(name, hp) {
     dealtThisTurn: false,                            // 本回合是否造成过伤害（盈能）
     controlledBy: -1,                                // 尤里：下回合被谁控制
     streak: 0,                                       // 连续出技能计数（对方出技能才归零）
-    jumped7: false,                                  // 本回合技能手是否"跳到7"（公平正义加成）
+    jumped7: false,                                  // 本回合数字连携是否到7（旧版为普通相加到7）
   };
 }
 
 function createGame(names) {
   const turn = Math.random() < 0.5 ? 0 : 1; // 先手随机
   return {
-    rulesVersion: 2,
+    rulesVersion: RULES_VERSION,
     phase: 'waiting',                                // waiting | playing | over
     players: [
       mkPlayer(names[0] || '玩家1', turn === 0 ? 20 : 21), // 先手20血，后手21血
@@ -111,8 +113,29 @@ function checkDeaths(g) {
 }
 
 // ---------- 伤害管线 ----------
+// 防护只在这里消费；技能不得自行扣盾、回血或构造另一套防护结算。
+function consumeWudi(g, target, label = '攻击') {
+  if (!target.wudi) return false;
+  target.wudi = false;
+  visualEvent(g, { kind: 'shield-break', source: idx(g, target), skillId: 'wudi' });
+  heal(g, target, 2);
+  log(g, `🛡 ${target.name} 的无敌抵挡了${label}，+2血`);
+  return true;
+}
+
+function restoreDummy(g, target) {
+  const hp = target.dummy.hp;
+  const reserve = target.dummy.reserve || [];
+  target.dummy.alive = reserve.length > 0;
+  target.dummy.hp = reserve.length ? reserve[0] : 0;
+  target.dummy.reserve = reserve.slice(1);
+  target.inDummyCombat = true;
+  target.hp = hp;
+  log(g, `🤖 ${target.name} 的假人替他挡下致命一击！复活后 HP ${target.hp}，剩余${target.dummy.alive ? 1 + target.dummy.reserve.length : 0}个假人`);
+}
+
 // 结算顺序：盈能/赌命增伤 → 无敌抵挡（+2血，荆棘不触发）→ 扣血 → 赌命≥9额外行动 →
-//           荆棘反弹（一次性，⌈n/2⌉）→ 假人复活 → 胜负检查
+//           荆棘反弹（一次性，⌈n/2⌉）→ 假人复活 → 完整技能结束后胜负检查
 function dealDamage(g, source, target, amount, opts = {}) {
   if (g.over || amount <= 0) return false;
   const { ignoreWudi = false, ignoreJingji = false, bypassDummy = false, isDot = false, noBonus = false, note = '' } = opts;
@@ -120,12 +143,8 @@ function dealDamage(g, source, target, amount, opts = {}) {
   if (!noBonus && source) {
     if (source.duming.active) amount += 3;
   }
-  // 无敌（仅抵挡瞬时伤害，dot 不触发；98K 无视）
-  if (!isDot && target.wudi && !ignoreWudi) {
-    target.wudi = false;
-    visualEvent(g, { kind: 'shield-break', source: idx(g, target), skillId: 'wudi' });
-    heal(g, target, 2);
-    log(g, `🛡 ${target.name} 的无敌抵挡了攻击，+2血`);
+  // v3 的所有伤害共用无敌；v1/v2 保留原行为以验证历史棋谱。
+  if ((!isDot || currentRules(g)) && !ignoreWudi && consumeWudi(g, target, note || '攻击')) {
     return false;
   }
   const outermost = !g.resolvingDamage;
@@ -156,16 +175,9 @@ function dealDamage(g, source, target, amount, opts = {}) {
   }
   // 假人复活（98K、赌命倒计时无视）
   if (target.hp <= 0 && target.dummy.alive && !bypassDummy) {
-    const dhp = target.dummy.hp;
-    const reserve = target.dummy.reserve || [];
-    target.dummy.alive = reserve.length > 0;
-    target.dummy.hp = reserve.length ? reserve[0] : 0;
-    target.dummy.reserve = reserve.slice(1);
-    target.inDummyCombat = true;
-    target.hp = dhp;
-    log(g, `🤖 ${target.name} 的假人替他挡下致命一击！复活后 HP ${target.hp}，剩余${target.dummy.alive ? 1 + target.dummy.reserve.length : 0}个假人`);
+    restoreDummy(g, target);
   }
-  if (outermost) { delete g.resolvingDamage; checkDeaths(g); }
+  if (outermost) { delete g.resolvingDamage; if (!g.resolvingSkill) checkDeaths(g); }
   return true;
 }
 
@@ -181,6 +193,7 @@ function startTurn(g) {
   p.turnDmg = 0;
   g.damagedThisTurn = false;
   g.actedThisTurn = false;
+  if (currentRules(g)) p.jumped7 = false;
   // 鄙视：对方回合前，若其技能手数字更大
   if (o.bishi && o.skill > p.skill) {
     gain(g, o, 1); loseE(g, p, 1);
@@ -221,7 +234,7 @@ function endTurn(g) {
     dealDamage(g, g.players[d.owner] || o, p, d.dmg, { isDot: true, noBonus: true, note: d.desc });
     if (g.over) return;
   }
-  // 七步：回合结束时扣血（不触发无敌、不受增伤）
+  // 七步：每段毒伤走统一防护入口；挡住一次不移除持续状态。
   if (p.qibu.stage > 0) {
     const d = p.qibu.stage === 1 ? 3 : 2;
     const owner = g.players[p.qibu.owner] || o;
@@ -286,6 +299,7 @@ function startGame(g) {
 // 盲ban：双方各选一个技能禁用；双方都选完才公示并开局
 function submitBan(g, playerIdx, skillId) {
   if (g.phase !== 'banning') return { err: '当前不是禁用阶段' };
+  if (![0, 1].includes(playerIdx)) return { err: '玩家索引无效' };
   if (g.banPicks[playerIdx]) return { err: '你已经选过禁用技能了' };
   const sk = __ALL_SKILLS_BY_ID[skillId];
   if (!sk) return { err: '技能不存在' };
@@ -299,23 +313,30 @@ function submitBan(g, playerIdx, skillId) {
 }
 
 // ---------- 玩家操作 ----------
+// 引擎、相加后的自动空过与 AI 共用技能可用性判定。
+function skillError(g, p, sk) {
+  if (!sk) return '技能不存在';
+  if (g.banned && g.banned.includes(sk.id)) return '该技能已被禁用';
+  if (p.streak >= 24) return '连续出技能已达24次，只能空过';
+  if (p.energy < p.skill) return '费用不足';
+  if (sk.id === 'duming' && (p.dumingUsed || p.duming.active)) return '赌命每局只能使用一次';
+  return null;
+}
+function canUseSkill(g, sk) { return !g.over && g.phase === 'playing' && !skillError(g, cur(g), sk); }
 // 判断当前玩家在相加之后是否还能释放至少一个技能（费用不足 / 连出上限 / 全部被禁 → 不能）
 function canCastAnySkill(g, p) {
-  if (p.streak >= 24) return false;
-  if (p.energy < p.skill) return false;
   const list = __SKILLS[p.skill] || [];
-  if (!list.length) return false;
-  if (g.banned && g.banned.length && list.every((s) => g.banned.indexOf(s.id) >= 0)) return false;
-  return true;
+  return list.some(sk => !skillError(g, p, sk));
 }
 
 function addHand(g, choice) {
   if (g.over || g.step !== 'awaitAdd') return { err: '现在不是相加阶段' };
+  if (![0, 1].includes(choice)) return { err: '只能选择费用手或技能手' };
   const p = cur(g), o = opp(g);
   const shown = choice === 0 ? o.energy % 10 : o.skill;
   const old = p.skill;
   p.skill = (p.skill + shown) % 10;
-  p.jumped7 = (p.skill === 7);
+  p.jumped7 = p.skill === 7 && (!currentRules(g) || g.chainCount > 0 && g.chainDigits.size > 0);
   g.step = 'awaitAction';
   log(g, `✋ ${p.name} 技能手与对方${choice === 0 ? '费用手' : '技能手'}（${shown}）相加：${old} → ${p.skill}`);
   // 新功能：相加之后若无法释放任何技能，自动空过（结束回合）
@@ -332,14 +353,12 @@ function addHand(g, choice) {
 
 function actSkill(g, skillIdx, opts = {}) {
   if (g.over || g.step !== 'awaitAction') return { err: '现在不能释放技能' };
+  if (!Number.isInteger(skillIdx) || skillIdx < 0) return { err: '技能索引无效' };
   const p = cur(g), o = opp(g);
   const list = __SKILLS[p.skill];
   const sk = list && list[skillIdx];
-  if (!sk) return { err: '技能不存在' };
-  if (g.banned && g.banned.indexOf(sk.id) >= 0) return { err: '该技能已被禁用' };
-  if (p.streak >= 24) return { err: '连续出技能已达24次，只能空过' };
-  if (p.energy < p.skill) return { err: '费用不足' };
-  if (sk.id === 'duming' && (p.dumingUsed || p.duming.active)) return { err: '赌命每局只能使用一次' };
+  const invalid = skillError(g, p, sk);
+  if (invalid) return { err: invalid };
   const handDigits = [p.energy % 10, p.skill, o.energy % 10, o.skill];
   p.energy -= p.skill;
   g.actedThisTurn = true;
@@ -348,21 +367,36 @@ function actSkill(g, skillIdx, opts = {}) {
   log(g, `🎯 ${p.name} 释放了【${sk.name}】（消耗 ${p.skill}$）`);
   // 盈能由下一次攻击消耗；不为七步、反弹或延迟伤害加成。
   let attackCharge = sk.isAttack && p.yingneng.active ? (p.yingneng.charge ?? p.yingneng.idle ?? 0) : 0;
+  let attackHit = false;
   if (attackCharge > 0) {
     p.yingneng.charge = 0;
     log(g, `⚡ 盈能：${p.name} 消耗${attackCharge}层充能强化攻击`);
   }
   const ctx = {
     handDigits, g, p, o, pIdx: idx(g, p), skill: sk, opts: opts || {},
+    modern: currentRules(g),
+    dispelLayers: p.jumped7 && (!currentRules(g) || g.chainCount > 0 && g.chainDigits.size > 0) ? 2 : 1,
     log: (m) => log(g, m),
     visual: (event) => visualEvent(g, event),
     gain: (n) => gain(g, p, n),
     healSelf: (n) => heal(g, p, n),
-    dmg: (t, amt, o2 = {}) => { const bonus = !o2.isDot && !o2.noBonus ? attackCharge : 0; if (bonus) attackCharge = 0; return dealDamage(g, p, t, amt + bonus, o2); },
+    block: (t) => consumeWudi(g, t, sk.name),
+    dmg: (t, amt, o2 = {}) => {
+      const bonus = !o2.isDot && !o2.noBonus ? attackCharge : 0;
+      if (bonus) attackCharge = 0;
+      const hit = dealDamage(g, p, t, amt + bonus, o2);
+      if (t === o && !o2.isDot && hit) attackHit = true;
+      return hit;
+    },
     kill: (sk.id === 'jiubaK' && g.chainCount >= 3 && g.chainDigits.size >= 2),
   };
   visualEvent(g, { kind: 'cast', source: idx(g, p), skillId: sk.id, combo: !!ctx.kill });
-  sk.run(ctx);
+  if (currentRules(g)) {
+    // 同一技能的伤害、反弹与自身回复构成一次完整结算。
+    g.resolvingSkill = true;
+    try { sk.run(ctx); } finally { delete g.resolvingSkill; }
+    checkDeaths(g);
+  } else sk.run(ctx);
   if (g.over) return { ok: true };
   if (p.yingneng.active && !sk.isAttack && sk.id !== 'yingneng') {
     p.yingneng.charge = Math.min(6, (p.yingneng.charge ?? p.yingneng.idle ?? 0) + 1);
@@ -374,7 +408,7 @@ function actSkill(g, skillIdx, opts = {}) {
     log(g, `☠ 赌命：攻击技能后 +1$`);
   }
   // 淬毒：攻击技能给目标附加"下回合1毒伤"（每放一次攻击技能挂一层）
-  if (p.cuidu && sk.isAttack) {
+  if (p.cuidu && sk.isAttack && (!currentRules(g) || attackHit)) {
     o.delayed.push({ owner: idx(g, p), dmg: 1, desc: '淬毒', noBonus: true });
     log(g, `🕷 淬毒：${o.name} 自己回合结束时将额外受到1点毒伤`);
   }
@@ -404,10 +438,10 @@ function passTurn(g) {
 }
 
 // ---------- 对外状态 ----------
-function buffList(p) {
+function buffList(p, g) {
   const out = [];
   if (p.jingji) out.push({ key: 'jingji', name: '荆棘', detail: '反弹一次伤害' });
-  if (p.wudi) out.push({ key: 'wudi', name: '无敌', detail: '抵挡一次攻击+2血' });
+  if (p.wudi) out.push({ key: 'wudi', name: '无敌', detail: currentRules(g) ? '抵挡下一段伤害（含灼烧/毒伤）+2血' : '旧规则：抵挡一次攻击+2血' });
   if (p.yingneng.active) out.push({ key: 'yingneng', name: '盈能', detail: `充能${p.yingneng.charge ?? p.yingneng.idle ?? 0}/6 · 下次攻击增伤` });
   if (p.shuangbei) out.push({ key: 'shuangbei', name: '双倍圣水', detail: `每回合额外+${p.shuangbei}$` });
   if (p.huxi) out.push({ key: 'huxi', name: '呼吸回血', detail: `每回合+${p.huxi * (p.qianghua ? 2 : 1)}血${p.qianghua ? '（强化）' : ''}` });
@@ -433,6 +467,7 @@ function publicState(g, youIdx) {
     catalog[d] = __SKILLS[d].map((s) => ({ id: s.id, name: s.name, desc: s.desc, star: !!s.star, isDigit: !!s.isDigit, isAttack: !!s.isAttack }));
   }
   return {
+    rulesVersion: g.rulesVersion,
     you: youIdx,
     phase: g.phase,
     turn: g.turn,
@@ -452,7 +487,7 @@ function publicState(g, youIdx) {
       name: p.name, hp: p.hp, energy: p.energy, skill: p.skill, shownE: p.energy % 10,
       streak: p.streak || 0,
       dumingUsed: !!(p.dumingUsed || p.duming.active),
-      buffs: buffList(p),
+      buffs: buffList(p, g),
       positiveBuffs: __positiveBuffs(p).map((b) => ({ key: b.key, name: b.name })),
     })),
     log: g.log.slice(),
@@ -479,6 +514,6 @@ function deserializeGame(json) {
   return g;
 }
 
-const __engineExport = { createGame, startGame, submitBan, addHand, actSkill, passTurn, publicState, serializeGame, deserializeGame, SKILLS: __SKILLS };
+const __engineExport = { RULES_VERSION, createGame, startGame, submitBan, addHand, actSkill, passTurn, canUseSkill, publicState, serializeGame, deserializeGame, SKILLS: __SKILLS };
 if (typeof module !== 'undefined' && module.exports) module.exports = __engineExport;
 if (typeof window !== 'undefined') window.__TW_engine = __engineExport;

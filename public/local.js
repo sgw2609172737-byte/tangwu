@@ -178,7 +178,7 @@ function buffChips(p) {
   const chips = [];
   const push = (key, name, detail) => chips.push(`<span class="buff" data-key="${key}" title="${esc(detail)}">${esc(name)}${detail ? '·' + esc(detail) : ''}</span>`);
   if (p.jingji) push('jingji', '荆棘', '反弹一次伤害');
-  if (p.wudi) push('wudi', '无敌', '抵挡一次攻击+2血');
+  if (p.wudi) push('wudi', '无敌', G.rulesVersion >= 3 ? '抵挡下一段伤害（含灼烧/毒伤）+2血' : '旧规则：抵挡一次攻击+2血');
   if (p.yingneng.active) push('yingneng', '盈能', `充能${p.yingneng.charge ?? p.yingneng.idle ?? 0}/6 · 下次攻击增伤`);
   if (p.shuangbei > 0) push('shuangbei', '双倍圣水', `每回合+${p.shuangbei}$`);
   if (p.huxi > 0) push('huxi', '呼吸回血', `每回合+${p.huxi * (p.qianghua ? 2 : 1)}血${p.qianghua ? '（强化）' : ''}`);
@@ -249,7 +249,7 @@ function render() {
   } else {
     b = `🎯 ${G.players[G.turn].name} 的回合`;
   }
-  $('#turn-banner').textContent = b;
+  $('#turn-banner').textContent = b + (G.rulesVersion < 3 ? ' · 旧规则对局' : '');
   $('#turn-banner').classList.toggle('myturn', !G.over);
   renderLog();
   renderControls();

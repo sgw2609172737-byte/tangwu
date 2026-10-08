@@ -34,7 +34,7 @@ test('初始状态：能量2/技能1，先手20血后手21血，开局+1能量',
   assert.strictEqual(p.energy, 3);
   assert.strictEqual(p.skill, 1);
   assert.strictEqual(g.step, 'awaitAdd');
-  assert.strictEqual(g.rulesVersion, 2);
+  assert.strictEqual(g.rulesVersion, 3);
 });
 
 test('首回合相加：加对方能量手(2)→3，加对方技能手(1)→2', () => {
@@ -138,23 +138,23 @@ test('98K连携：114514秒杀无视假人', () => {
   assert.ok(o.hp <= 0);
 });
 
-test('七步：-3→净化降为-2→净化解除；不触发无敌', () => {
+test('七步：无敌挡一次，净化降为-2，再净化解除', () => {
   const g = mk(); const first = g.turn;
   const p = g.players[first], o = g.players[1 - first];
   p.hp = 20; p.qibu = { stage: 1, owner: 1 - first }; p.wudi = true;
-  skipTurn(g); // p回合结束 → -3（不触发无敌）
-  assert.strictEqual(p.hp, 17);
-  assert.strictEqual(p.wudi, true); // 无敌保留
+  skipTurn(g); // p回合结束，无敌抵挡七步并+2血
+  assert.strictEqual(p.hp, 22);
+  assert.strictEqual(p.wudi, false);
   skipTurn(g); // o回合
   assert.strictEqual(g.turn, first);
   force(g, 0); act(g, 'jinghua'); // p净化：+1血，七步→-2；回合结束再-2
   assert.strictEqual(p.qibu.stage, 2);
-  assert.strictEqual(p.hp, 16); // 17+1-2
+  assert.strictEqual(p.hp, 21); // 22+1-2
   skipTurn(g); // o回合
   assert.strictEqual(g.turn, first);
   force(g, 0); act(g, 'jinghua'); // 解除；回合结束不再扣
   assert.strictEqual(p.qibu.stage, 0);
-  assert.strictEqual(p.hp, 17); // 16+1
+  assert.strictEqual(p.hp, 22); // 21+1
 });
 
 test('冰封：只+1能量、跳过相加与行动', () => {
@@ -357,6 +357,7 @@ test('公平正义：技能手跳到7时去2层', () => {
   o.huxi = 3;
   p.energy = 11;
   p.jumped7 = true; // 模拟"通过数字跳到7"
+  g.chainCount = 1; g.chainDigits = new Set(['yi']);
   force(g, 7); act(g, 'gongping', { buffIdx: 0 });
   assert.strictEqual(o.huxi, 1); // 3层 → 扣2层 → 剩1层
 });
@@ -366,6 +367,7 @@ test('公平正义：跳到7时两个buff各扣1层', () => {
   o.wudi = true; o.qianghua = true;
   p.energy = 11;
   p.jumped7 = true;
+  g.chainCount = 1; g.chainDigits = new Set(['yi']);
   force(g, 7); act(g, 'gongping', { buffIdx: 0 }); // 选中无敌
   assert.strictEqual(o.wudi, false);
   assert.strictEqual(o.qianghua, false); // 补足2层：另一个buff也被扣1层
@@ -376,6 +378,7 @@ test('公平正义：不足2层有多少去多少', () => {
   o.wudi = true;
   p.energy = 11;
   p.jumped7 = true;
+  g.chainCount = 1; g.chainDigits = new Set(['yi']);
   force(g, 7); act(g, 'gongping', { buffIdx: 0 });
   assert.strictEqual(o.wudi, false); // 只有1层 → 只去1层
 });

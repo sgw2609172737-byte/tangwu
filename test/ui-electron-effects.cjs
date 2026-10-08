@@ -17,12 +17,20 @@ const original=supplied?fs.readFileSync(supplied):null,count=JSON.parse(fs.readF
  try{
   const page=await app.firstWindow(),errors=[];page.on('pageerror',e=>errors.push(e.message));await page.waitForLoadState('load');await page.locator('#btn-last-match').waitFor({state:'visible'});await page.locator('#btn-last-match').click();
   assert.equal(await page.evaluate('reviewingMatch && G.over && !aiWorker'),true);
-  assert.equal(await page.evaluate('G.endReason.code'),'legacy-stalemate');assert.match(await page.locator('#log').innerText(),/按血量判定胜负/);
-  if(supplied){const last=JSON.parse(fs.readFileSync(recordFile)).records.at(-1),expected=require('../replay').reconstruct(last);assert.deepEqual(await page.evaluate('G.players.map(p=>p.hp)'),expected.players.map(p=>p.hp));}
+  if(supplied){const last=JSON.parse(fs.readFileSync(recordFile)).records.at(-1),expected=require('../replay').reconstruct(last);assert.deepEqual(await page.evaluate('G.players.map(p=>p.hp)'),expected.players.map(p=>p.hp));assert.equal(await page.evaluate('G.endReason.code'),expected.endReason.code);}
+  else {assert.equal(await page.evaluate('G.endReason.code'),'legacy-stalemate');assert.match(await page.locator('#log').innerText(),/按血量判定胜负/);}
   await page.screenshot({path:path.join(out,'desktop-recovered-last-game.png')});await page.locator('#btn-back').click();await page.locator('[data-mode=pvp]').click();await page.locator('#btn-start').click();await page.locator('[data-ban=jiubaK]').click();await page.locator('[data-ban=youli]').click();
   await page.evaluate("cancelAI();TW_FX.reset();G=TW.createGame(['你','对手']);G.turn=0;G.phase='playing';G.step='awaitAction';G.players[0].skill=1;G.players[0].energy=11;cfg.mode='pvp';trainingReplay=null;render();");
   await page.locator('[data-skill-id=quan]').click();assert.equal(await page.evaluate('TW_FX.busy()'),true);assert.deepEqual(await page.locator('.cast-scene').evaluate(e=>e.getAnimations().map(a=>a.effect.getTiming().duration)),[1200]);await page.waitForTimeout(390);await page.screenshot({path:path.join(out,'desktop-packaged-cast.png')});await page.waitForFunction('!TW_FX.busy()');
+  async function position(script){await page.evaluate(script=>{cancelAI();TW_FX.reset();G=TW.createGame(['你','对手']);G.turn=0;G.phase='playing';G.step='awaitAction';G.players.forEach(p=>{p.hp=30;p.energy=11;});cfg.mode='pvp';trainingReplay=null;reviewingMatch=false;resultDismissed=false;archivedGame=null;eval(script);render();},script);}
+  async function cast(id){await page.locator(`[data-skill-id=${id}]`).click();if(id==='gongping')await page.locator('#buffform button[type=submit]').click();await page.waitForFunction('!TW_FX.busy()');}
+  assert.equal(await page.evaluate('TW.RULES_VERSION'),3);
+  await position("G.players[0].skill=5;G.players[0].hp=1;G.players[0].delayed=[{owner:1,dmg:2,desc:'小烈焰'}];");await cast('wudi');assert.equal(await page.evaluate('G.players[0].hp===3&&!G.over'),true);
+  await position('G.players[0].skill=1;G.players[1].skill=6;G.players[1].shuangbei=3;');await cast('yi');await page.locator('[data-add="1"]').click();await cast('gongping');assert.equal(await page.evaluate('G.players[1].shuangbei'),1);
+  await position("G.players[0].skill=1;G.players[1].skill=6;G.players[1].shuangbei=3;G.step='awaitAdd';");await page.locator('[data-add="1"]').click();await cast('gongping');assert.equal(await page.evaluate('G.players[1].shuangbei'),2);
+  await position('G.players[0].skill=9;G.players[0].hp=4;G.players[1].jingji=true;');await cast('yuandu');assert.equal(await page.evaluate('G.players[0].hp===2&&!G.over'),true);
+  await page.screenshot({path:path.join(out,'desktop-packaged-mechanics-v3.png')});
   assert.equal(JSON.parse(fs.readFileSync(recordFile)).records.length,count);if(original)assert.deepEqual(fs.readFileSync(supplied),original);assert.deepEqual(errors,[]);
-  console.log('PASS: actual packaged EXE assets, legacy log recovery, read-only review, 1200ms cast and unchanged original/training records');
+  console.log('PASS: actual packaged EXE, historical log recovery, 1200ms cast, v3 burn immunity, numeric-chain vs ordinary dispel, healing before verdict and unchanged original/training records');
  }finally{await app.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -334,7 +334,7 @@ function renderGame() {
   } else {
     b = '⏳ 等待对方操作…';
   }
-  $('#turn-banner').textContent = b;
+  $('#turn-banner').textContent = b + (state.rulesVersion < 3 ? ' · 旧规则对局' : '');
   $('#turn-banner').classList.toggle('myturn', !state.over && actor === myIdx);
   $('#turn-banner').classList.toggle('aiwait', !!state.ai && actor !== myIdx && !state.over);
   renderControls(actor);

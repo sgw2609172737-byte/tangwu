@@ -22,7 +22,7 @@
     return replay && !replay.truncated && g.over?{...replay,winner:g.winner}:null;
   }
   function reconstruct(record,onStep) {
-    if(record?.rulesVersion!==undefined && ![1,2].includes(record.rulesVersion))throw Error('对局规则版本无效');
+    if(record?.rulesVersion!==undefined && ![1,2,3].includes(record.rulesVersion))throw Error('对局规则版本无效');
     if(record?.version!==1 || typeof record.id!=='string' || !/^[a-zA-Z0-9-]{8,64}$/.test(record.id) || ![0,1].includes(record.turn) || !Array.isArray(record.bans) || record.bans.length!==2 || !record.bans.every(id=>typeof id==='string'&&skillIds.has(id)) || !Array.isArray(record.actions) || record.actions.length>MAX_STEPS || record.truncated || ![-1,0,1].includes(record.winner)) throw Error('对局记录不完整');
     const g=E.createGame(['人类','AI']);g.rulesVersion=record.rulesVersion||1;g.searchOnly=true;g.turn=record.turn;g.players[g.turn].hp=20;g.players[1-g.turn].hp=21;g.phase='banning';
     for(let i=0;i<2;i++) {const r=E.submitBan(g,i,record.bans[i]);if(r?.err) throw Error('禁用记录无效');}

@@ -34,7 +34,7 @@ with sync_playwright() as p:
  page.wait_for_function('!document.querySelector("#training-enabled").disabled')
  assert page.locator('#training-enabled').is_checked()
  data=page.evaluate('TWDesktopTraining.request({op:"export"})');assert data['count']==1
- assert data['records'][0]['rulesVersion']==2 and data['records'][0]['source']=='android'
+ assert data['records'][0]['rulesVersion']==3 and data['records'][0]['source']=='android'
  page.locator('[data-mode=pvp]').click();page.locator('#btn-start').click();page.locator('[data-ban=jiubaK]').click();page.locator('[data-ban=youli]').click()
  page.locator('#btn-card-fx').click()
  # An isolated legal attack fixture checks the native compositor without altering collected samples.

@@ -20,7 +20,7 @@ const tests = {
     for (const hp of [30,3]) { const g=position(8,hp,30);g.banned=['ba','duming'];const a=AI.chooseAction(g,0,'hard',120);assert.equal(SK.SKILLS[8][a.skillIdx].id,hp===30?'huxi':'jijiu'); }
   },
   '主动反制对方叠加经济'() {
-    const g=position(7,30,30);g.players[1].shuangbei=3;g.players[0].jumped7=true;
+    const g=position(7,30,30);g.players[1].shuangbei=3;g.players[0].jumped7=true;g.chainCount=1;g.chainDigits=new Set(['yi']);
     const a=AI.chooseAction(g,0,'hard',120);assert.equal(SK.SKILLS[7][a.skillIdx].id,'gongping');
   },
   '安全的低资源局面愿意投资'() {
