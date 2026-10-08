@@ -28,7 +28,7 @@
     if(!/Chrome|Chromium|Edg/.test(navigator.userAgent)||!window.ResizeObserver)return;
     const reduced=matchMedia('(prefers-reduced-transparency: reduce)'),contrast=matchMedia('(forced-colors: active)');
     const svg=document.createElementNS(ns,'svg');svg.classList.add('liquid-glass-filters');svg.setAttribute('aria-hidden','true');svg.setAttribute('focusable','false');document.body.append(svg);
-    const selector='.home-launcher,.player-card,.controls,.controls-local,.log-panel,.modal-box,.glass-select-menu,.match-tools';
+    const selector='.studio-glass,.command-panel,.home-launcher,.player-card,.controls,.controls-local,.log-panel,.modal-box,.glass-select-menu,.match-tools';
     const targets=new Map();let frame=0,serial=0;
     const visible=el=>el.isConnected&&el.offsetWidth&&el.offsetHeight&&(!el.hasAttribute('popover')||el.matches(':popover-open'));
     function detach(el){targets.get(el).filter.remove();targets.delete(el);resize.unobserve(el);delete el.dataset.liquidGlass;el.style.removeProperty('--glass-refraction');}
@@ -53,7 +53,7 @@
     const schedule=()=>{if(!frame)frame=requestAnimationFrame(refresh);};
     const resize=new ResizeObserver(schedule),mutations=new MutationObserver(records=>{if(records.some(r=>!svg.contains(r.target)))schedule();});
     // Ignore style/data writes made by this engine: no self-triggering render loop.
-    mutations.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','hidden']});
+    mutations.observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['class','hidden','open']});
     document.addEventListener('toggle',schedule,true);reduced.addEventListener('change',schedule);contrast.addEventListener('change',schedule);refresh();
     window.addEventListener('pagehide',()=>{mutations.disconnect();resize.disconnect();cancelAnimationFrame(frame);},{once:true});
   }

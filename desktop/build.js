@@ -10,6 +10,7 @@ const OUT = process.argv[2] ? path.resolve(process.argv[2]) : path.join(__dirnam
 const files = [
   ['desktop/main.js', 'main.js'],
   ['desktop/preload.js', 'preload.js'],
+  ['desktop/studio-preload.js', 'studio-preload.js'],
   ['lib/local-training.js', 'lib/local-training.js'],
   ['skills.js', 'skills.js'],
   ['engine.js', 'engine.js'],
@@ -21,6 +22,7 @@ const files = [
   ['public/training-ui.js','public/training-ui.js'],
   ['public/training.css','public/training.css'],
   ['public/local.html', 'public/local.html'],
+  ...['studio.html','studio.css','studio.js','study-core.js','study-worker.js','command-palette.js','design-interactions.css','vendor'].map(name=>['public/'+name,'public/'+name]),
   ['public/ui.js', 'public/ui.js'],
   ['public/local.js', 'public/local.js'],
   ['public/ai-worker.js', 'public/ai-worker.js'],
@@ -63,7 +65,7 @@ const pkg = {
     appId: 'com.tangwu.local',
     productName: 'TangWu',
     directories: { output: 'dist' },
-    files: ['main.js', 'preload.js','lib/local-training.js','skills.js', 'engine.js', 'ai.js', 'ranked.js', 'learning.js', 'neural-model.js','replay.js', 'icon.ico', 'public/**/*'],
+    files: ['main.js', 'studio-preload.js', 'preload.js','lib/local-training.js','skills.js', 'engine.js', 'ai.js', 'ranked.js', 'learning.js', 'neural-model.js','replay.js', 'icon.ico', 'public/**/*'],
     win: { target: ['portable'], icon: 'icon.ico' },
     // In the installed electron-builder 24, true omits UNPACK_DIR_NAME and
     // selects per-launch $PLUGINSDIR. false is incorrectly treated as default.

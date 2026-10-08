@@ -14,6 +14,7 @@
 <link rel="stylesheet" href="ranked.css">
 <link rel="stylesheet" href="training.css">
 <link rel="stylesheet" href="liquid-glass.css">
+<link rel="stylesheet" href="design-interactions.css">
 <script src="glass-controls.js"></script>
 <script src="glass-material.js" defer></script>
 </head>
@@ -21,7 +22,7 @@
 <header>
   <div class="logo modern-brand"><span class="brand-mark" aria-hidden="true">T<span>W</span></span><span>唐五</span><span class="brand-sub">STRATEGY DUEL</span></div>
   <div class="roominfo" id="subinfo">策略对决</div>
-  <div class="header-btns"><a class="header-link" href="artbook.html" target="_blank" rel="noopener">图鉴</a><button id="btn-rules" class="ghost">规则</button><button id="btn-back" class="ghost hidden">菜单</button></div>
+  <div class="header-btns"><a class="header-link" href="studio.html" target="_blank" rel="noopener">工坊</a><a class="header-link" href="artbook.html" target="_blank" rel="noopener">图鉴</a><button id="btn-rules" class="ghost">规则</button><button id="btn-back" class="ghost hidden">菜单</button></div>
 </header>
 
 <main>
@@ -32,7 +33,7 @@
       <h1>下一手，<br><em>由你掌控。</em></h1>
       <p class="hero-copy">数字是起点，策略决定走向。<br>积蓄力量、组合连携，在交锋中找到你的解法。</p>
       <div class="home-showcase" aria-hidden="true"><div class="showcase-orbit"></div><div class="showcase-halo"></div><div class="showcase-cards" data-showcase></div><span class="showcase-caption">蓄势 · 连携 · 反制</span></div>
-      <div class="home-footnote"><span>40 种技能</span><i></i><span>10 种数字手势</span><i></i><a href="artbook.html" target="_blank" rel="noopener">探索技能图鉴 ↗</a></div>
+      <a class="studio-entry" href="studio.html" target="_blank" rel="noopener"><span><strong>战术工坊</strong><small>逐步复盘 · 从转折点试招 · 机制挑战</small></span><b aria-hidden="true">↗</b></a><div class="home-footnote"><span>40 种技能</span><i></i><span>10 种数字手势</span><i></i><a href="artbook.html" target="_blank" rel="noopener">探索技能图鉴 ↗</a></div>
     </div>
     <div class="play-panel home-launcher"><div class="launcher-heading"><span class="launcher-tag">本地游戏</span><span class="launcher-symbol" aria-hidden="true">↗</span></div><h2>选择你的对手</h2><p class="sub">同屏对坐，或与 AI 切磋。</p>
     <div class="menu-opt"><div class="seg" id="mode-seg" aria-label="对战模式">
@@ -80,6 +81,7 @@
     <h2 id="result-title"></h2>
     <div id="result-sub" class="sub"></div>
     <p id="result-reason" class="result-reason"></p>
+    <button id="btn-study-result" class="ghost" disabled>逐步复盘与演练</button>
     <button id="btn-view-log" class="ghost">查看本局日志</button>
     <button id="btn-again" class="primary">🔁 再来一局</button>
     <button id="btn-menu" class="ghost">返回菜单</button>
@@ -102,6 +104,10 @@
 <script src="battle-fx.js"></script>
 <script src="home.js"></script>
 <script src="training-ui.js"></script>
+<script src="study-core.js"></script>
+<script src="vendor/lens-focus.js"></script>
+<script src="vendor/overture-motion.js"></script>
+<script src="command-palette.js"></script>
 <script src="local.js"></script>
 </body>
 </html>

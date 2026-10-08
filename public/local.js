@@ -36,6 +36,7 @@ function syncLocalMode() {
 let cfg = { mode: 'pve', diff: 'normal' };
 let G = null;
 let trainingReplay=null;
+let studyReplay=null;
 const trainingSent=new Set();
 let aiTimer = null;
 let toastTimer = null;
@@ -77,6 +78,7 @@ function backToMenu() {
   TW_FX.reset();
   cancelAI();
   G = null;
+  studyReplay=null;
   trainingReplay=null;window.TWTraining?.active(null);
   $('#game').classList.add('hidden');
   $('#ban').classList.add('hidden');
@@ -116,6 +118,7 @@ async function startGameLocal() {
   $('#menu').classList.add('hidden');
   $('#btn-back').classList.remove('hidden');
   G = TW.createGame(names());
+  studyReplay=null;
   trainingReplay=null;
   G.phase = 'banning';
   _prevHp[0] = _prevHp[1] = -1;
@@ -166,6 +169,7 @@ function renderBan() {
 
 function afterBan() {
   if (G.phase !== 'playing') return;
+  studyReplay=window.__TWReplay.create(G,cfg.diff);
   if(isHumanAI() && window.TWTraining?.enabled()) trainingReplay=window.__TWReplay.create(G,cfg.diff);
   $('#ban').classList.add('hidden');
   $('#game').classList.remove('hidden');
@@ -353,8 +357,10 @@ function doAction(a) {
   if (!G || G.over || TW_FX.busy() || reviewingMatch) return;
   if (window.TW_SFX) TW_SFX.click();
   if(!window.TWTraining?.enabled()) trainingReplay=null;
+  const studyActor=actorOf(G);
   const r=window.__TWReplay.perform(G,a,trainingReplay);
   if (r && r.err) { toast(r.err); return; }
+  window.__TWStudy?.append(studyReplay,a,studyActor);
   render();
   scheduleAI();
 }
@@ -444,7 +450,7 @@ $('#log-jump').onclick = () => { $('#log').scrollTop = $('#log').scrollHeight; $
 $('#log').addEventListener('scroll', () => { const el = $('#log'); if (el.scrollHeight - el.scrollTop - el.clientHeight < 60) $('#log-jump').classList.add('hidden'); }, { passive: true });
 document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.altKey || e.metaKey || e.repeat || !G || G.over) return;
-  if (document.querySelector('.modal:not(.hidden)') || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
+  if (document.querySelector('.modal:not(.hidden),dialog[open]') || /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName)) return;
   if (cfg.mode === 'ai' || (isHumanAI() && actorOf(G) !== 0)) return;
   let button;
   if (G.step === 'awaitAdd' && /^[12]$/.test(e.key)) button = $('#controls').querySelectorAll('[data-add]')[Number(e.key) - 1];
@@ -481,10 +487,14 @@ function saveMatch() {
   if(reviewingMatch){status.textContent='已结束 · 查看上局';return;}
   try {
     if (G.over) {
-      if(archivedGame!==G){localStorage.setItem(LAST_KEY,JSON.stringify({version:1,cfg,game:TW.serializeGame(G),rankResult:localRankResult,finishedAt:Date.now()}));archivedGame=G;}
+      if(archivedGame!==G){
+        let studyId=null;try{studyId=window.__TWStudy?.archive(studyReplay,G,localStorage);}catch(_){/* Manual resignations have no authoritative action trace. */}
+        localStorage.setItem(LAST_KEY,JSON.stringify({version:1,cfg,game:TW.serializeGame(G),rankResult:localRankResult,finishedAt:Date.now(),studyId}));archivedGame=G;
+        const replayButton=$('#btn-study-result');if(replayButton){replayButton.disabled=!studyId;replayButton.onclick=()=>window.open('studio.html?record='+encodeURIComponent(studyId),'_blank');}
+      }
       localStorage.removeItem(SAVE_KEY);status.textContent='对局与日志已保留';return;
     }
-    localStorage.setItem(SAVE_KEY, JSON.stringify({ version:1, cfg, game:TW.serializeGame(G),trainingReplay }));
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ version:1, cfg, game:TW.serializeGame(G),trainingReplay,studyReplay }));
     status.textContent = '进度已保存';
   } catch (_) { status.textContent = '无法保存：浏览器存储不可用'; }
 }
@@ -508,6 +518,7 @@ resumeButton.onclick = async () => {
   cancelAI(); TW_FX.reset(); cfg = saved.cfg; G = saved.game;
   reviewingMatch=false;resultDismissed=false;resultWaitFor=null;
   trainingReplay=window.TWTraining?.enabled()?saved.trainingReplay || null:null;
+  studyReplay=window.__TWStudy?.resume(saved.studyReplay||saved.trainingReplay,G)||null;
   localRankResult=null;
   spectatorPaused = cfg.mode === 'ai'; _prevHp[0] = _prevHp[1] = -1; _lastLogLen = 0;
   setOn('#mode-seg', document.querySelector(`[data-mode="${cfg.mode}"]`));

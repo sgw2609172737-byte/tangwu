@@ -56,6 +56,7 @@
   });
   window.TWMobile = {
     back() {
+      const dialog=document.querySelector('dialog[open]');if(dialog){dialog.close();return true;}
       const visible = selector => { const element = document.querySelector(selector); return element && !element.classList.contains('hidden'); };
       if (visible('#rules-modal')) { document.querySelector('#btn-rules-close').click(); return true; }
       if (visible('#result-modal')) { document.querySelector('#btn-menu').click(); return true; }

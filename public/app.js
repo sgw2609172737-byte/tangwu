@@ -503,7 +503,7 @@ document.addEventListener('keydown', (e) => {
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   const ael = document.activeElement;
   if (ael && (ael.tagName === 'INPUT' || ael.tagName === 'TEXTAREA' || ael.tagName === 'SELECT')) return;
-  if (document.querySelector('.modal:not(.hidden)')) return;
+  if (document.querySelector('.modal:not(.hidden),dialog[open]')) return;
   if (!me.token || !state || state.over) return;
   const actor = state.controller >= 0 ? state.controller : state.turn;
   if (actor !== me.idx) return;

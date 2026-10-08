@@ -11,6 +11,7 @@
 <link rel="stylesheet" href="ranked.css">
 <link rel="stylesheet" href="training.css">
 <link rel="stylesheet" href="liquid-glass.css">
+<link rel="stylesheet" href="design-interactions.css">
 <script src="glass-controls.js"></script>
 <script src="glass-material.js" defer></script>
 </head>
@@ -18,7 +19,7 @@
 <header>
   <div class="logo modern-brand"><span class="brand-mark" aria-hidden="true">T<span>W</span></span><span>唐五</span><span class="brand-sub">STRATEGY DUEL</span></div>
   <div class="roominfo" id="roominfo"></div>
-  <div class="header-btns"><a class="header-link" href="artbook.html" target="_blank" rel="noopener">图鉴</a>
+  <div class="header-btns"><a class="header-link" href="studio.html" target="_blank" rel="noopener">工坊</a><a class="header-link" href="artbook.html" target="_blank" rel="noopener">图鉴</a>
     <button id="btn-rules" class="ghost">规则</button>
     <button id="btn-leave" class="ghost hidden">退出</button>
   </div>
@@ -31,7 +32,7 @@
       <h1>下一手，<br><em>由你掌控。</em></h1>
       <p class="hero-copy">数字是起点，策略决定走向。<br>积蓄力量、组合连携，在交锋中找到你的解法。</p>
       <div class="home-showcase" aria-hidden="true"><div class="showcase-orbit"></div><div class="showcase-halo"></div><div class="showcase-cards" data-showcase></div><span class="showcase-caption">蓄势 · 连携 · 反制</span></div>
-      <div class="home-footnote"><span>40 种技能</span><i></i><span>10 种数字手势</span><i></i><a href="artbook.html" target="_blank" rel="noopener">探索技能图鉴 ↗</a></div>
+      <a class="studio-entry" href="studio.html" target="_blank" rel="noopener"><span><strong>战术工坊</strong><small>逐步复盘 · 从转折点试招 · 机制挑战</small></span><b aria-hidden="true">↗</b></a><div class="home-footnote"><span>40 种技能</span><i></i><span>10 种数字手势</span><i></i><a href="artbook.html" target="_blank" rel="noopener">探索技能图鉴 ↗</a></div>
     </div>
     <div class="play-panel home-launcher"><div class="launcher-heading"><span class="launcher-tag">开始游戏</span><span class="launcher-symbol" aria-hidden="true">↗</span></div><h2>准备好出下一手？</h2><p class="sub">独自练习，或邀请朋友来一场较量。</p>
       <div class="entry-tabs" role="tablist" aria-label="进入游戏的方式">
@@ -136,5 +137,5 @@
 <script src="training-ui.js"></script>
 <script src="app.js"></script>
 <script src="online-rank.js"></script>
-</body>
+<script src="vendor/lens-focus.js"></script><script src="vendor/overture-motion.js"></script><script src="command-palette.js"></script></body>
 </html>
