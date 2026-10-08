@@ -21,8 +21,8 @@ const original=supplied?fs.readFileSync(supplied):null,count=JSON.parse(fs.readF
   if(supplied){const last=JSON.parse(fs.readFileSync(recordFile)).records.at(-1),expected=require('../replay').reconstruct(last);assert.deepEqual(await page.evaluate('G.players.map(p=>p.hp)'),expected.players.map(p=>p.hp));}
   await page.screenshot({path:path.join(out,'desktop-recovered-last-game.png')});await page.locator('#btn-back').click();await page.locator('[data-mode=pvp]').click();await page.locator('#btn-start').click();await page.locator('[data-ban=jiubaK]').click();await page.locator('[data-ban=youli]').click();
   await page.evaluate("cancelAI();TW_FX.reset();G=TW.createGame(['你','对手']);G.turn=0;G.phase='playing';G.step='awaitAction';G.players[0].skill=1;G.players[0].energy=11;cfg.mode='pvp';trainingReplay=null;render();");
-  await page.locator('[data-skill-id=quan]').click();assert.equal(await page.evaluate('TW_FX.busy()'),true);await page.waitForTimeout(650);await page.screenshot({path:path.join(out,'desktop-packaged-cast.png')});await page.waitForFunction('!TW_FX.busy()');
+  await page.locator('[data-skill-id=quan]').click();assert.equal(await page.evaluate('TW_FX.busy()'),true);assert.deepEqual(await page.locator('.cast-scene').evaluate(e=>e.getAnimations().map(a=>a.effect.getTiming().duration)),[1200]);await page.waitForTimeout(390);await page.screenshot({path:path.join(out,'desktop-packaged-cast.png')});await page.waitForFunction('!TW_FX.busy()');
   assert.equal(JSON.parse(fs.readFileSync(recordFile)).records.length,count);if(original)assert.deepEqual(fs.readFileSync(supplied),original);assert.deepEqual(errors,[]);
-  console.log('PASS: actual packaged EXE assets, legacy log recovery, read-only review, 2000ms cast and unchanged original/training records');
+  console.log('PASS: actual packaged EXE assets, legacy log recovery, read-only review, 1200ms cast and unchanged original/training records');
  }finally{await app.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

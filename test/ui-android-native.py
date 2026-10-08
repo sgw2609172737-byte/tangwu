@@ -39,7 +39,7 @@ with sync_playwright() as p:
  page.locator('#btn-card-fx').click()
  # An isolated legal attack fixture checks the native compositor without altering collected samples.
  page.evaluate("cancelAI();TW_FX.reset();G=TW.createGame(['你','对手']);G.turn=0;G.phase='playing';G.step='awaitAction';G.players[0].skill=1;G.players[0].energy=11;cfg.mode='pvp';trainingReplay=null;render();")
- page.locator('[data-skill-id=quan]').click();page.wait_for_timeout(650)
+ page.locator('[data-skill-id=quan]').click();page.wait_for_timeout(390)
  assert page.evaluate('TW_FX.busy()');assert page.locator('.cast-scene').evaluate('(e)=>e.getBoundingClientRect().width===innerWidth')
  page.screenshot(path=str(root/'output/qa/android-native-cast.png'))
  page.wait_for_function('!TW_FX.busy()')
@@ -52,4 +52,4 @@ with sync_playwright() as p:
  page.locator('#btn-back').click()
  assert not errors,errors;assert not remote,remote
  page.locator('#training-export').click()
- print('PASS: native HTTPS asset loader, real offline Worker game, trained inference, 2s compositor, native back, IndexedDB persistence, opt-in validated recording and finished-game review; native document export requested')
+ print('PASS: native HTTPS asset loader, real offline Worker game, trained inference, 1.2s compositor, native back, IndexedDB persistence, opt-in validated recording and finished-game review; native document export requested')

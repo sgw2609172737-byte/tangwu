@@ -1,0 +1,327 @@
+{
+  "version": 3,
+  "generator": "built-in image_gen",
+  "strategy": "one independent image request per skill",
+  "icons": {
+    "danxiao": {
+      "name": "氮笑",
+      "file": "danxiao.webp",
+      "original": "output/artwork/skill-icons-v3/danxiao.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "7cc98c522cf5c5e5581157757c132c449da4a94f8702d3b0657b8ec50e9fdc83"
+    },
+    "jinghua": {
+      "name": "净化",
+      "file": "jinghua.webp",
+      "original": "output/artwork/skill-icons-v3/jinghua.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "5c928528bed4bf2f772a439ab3586ddeb24634c162a02b309f1eae98fd96de86"
+    },
+    "jiaren": {
+      "name": "假人",
+      "file": "jiaren.webp",
+      "original": "output/artwork/skill-icons-v3/jiaren.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "8af3a5b7843d36f821dc052246aa64992ba683bd24f4ff9ca7841e626562b175"
+    },
+    "jiarenqh": {
+      "name": "假人强化",
+      "file": "jiarenqh.webp",
+      "original": "output/artwork/skill-icons-v3/jiarenqh.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "5d3ceab8121d6309ff75f3cfdcb2e033f5b238f6d18789b4cbe2b4ac6ab56325"
+    },
+    "xiao": {
+      "name": "笑",
+      "file": "xiao.webp",
+      "original": "output/artwork/skill-icons-v3/xiao.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "bfd7d29e5b2a287b6d2a5aafa8c5b4bb117756c16aaeec9d61712545b1ce00f4"
+    },
+    "quan": {
+      "name": "拳",
+      "file": "quan.webp",
+      "original": "output/artwork/skill-icons-v3/quan.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "8d5cf742dfc68d95389ac547592dc39f54185e500c23c1ce0b3522d830e1593d"
+    },
+    "yi": {
+      "name": "一",
+      "file": "yi.webp",
+      "original": "output/artwork/skill-icons-v3/yi.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "d4ac448bccab8e61e672895325af45a01a3fa3823f807d2583d7dca664fd35ea"
+    },
+    "tao": {
+      "name": "桃",
+      "file": "tao.webp",
+      "original": "output/artwork/skill-icons-v3/tao.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "9a5ca8cbfbd0921374d7792c38b576013427cbf2c72d4c58e9a802ae74e1f55f"
+    },
+    "huanwu": {
+      "name": "幻雾",
+      "file": "huanwu.webp",
+      "original": "output/artwork/skill-icons-v3/huanwu.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "136a20929481433122d965a7abb82d9a9d93612c46583638cc6bc0111985097a"
+    },
+    "huifu": {
+      "name": "回复术士",
+      "file": "huifu.webp",
+      "original": "output/artwork/skill-icons-v3/huifu.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "d139c8e19e1a541c5f3036c127d0c95796692f0fb6a1a1d4d6db693c7f01bdee"
+    },
+    "jingji": {
+      "name": "荆棘",
+      "file": "jingji.webp",
+      "original": "output/artwork/skill-icons-v3/jingji.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "5658c5bd5849a8f302c2391c24728d8721fb5992c76a842da8b18c7dc5908f0f"
+    },
+    "chaofeng": {
+      "name": "嘲讽",
+      "file": "chaofeng.webp",
+      "original": "output/artwork/skill-icons-v3/chaofeng.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "b14be40418aa4b90088a3af472f215c81cc800fc160a3e9dd8a7ac53a6d18ac9"
+    },
+    "xiaolieyan": {
+      "name": "小烈焰",
+      "file": "xiaolieyan.webp",
+      "original": "output/artwork/skill-icons-v3/xiaolieyan.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "80ce72db658c776dcdc964b6ef9ad9126b5d90c3d282b9cbcdb258935725cc6d"
+    },
+    "san": {
+      "name": "三",
+      "file": "san.webp",
+      "original": "output/artwork/skill-icons-v3/san.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "5c55fe2bd74df34df4f662e5dd87f71bd34b7b8ccf7cf4537b4ae6dfb70ecb45"
+    },
+    "hanfeng": {
+      "name": "寒风",
+      "file": "hanfeng.webp",
+      "original": "output/artwork/skill-icons-v3/hanfeng.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "547509dc5773a05254a0cd4154049a8818a326e0b896675119cbef37277815a1"
+    },
+    "tanghua": {
+      "name": "假人唐化",
+      "file": "tanghua.webp",
+      "original": "output/artwork/skill-icons-v3/tanghua.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "f355b978c4dd62e2c3fc69414bd2446ab76dc460562d5be2ef8ca0b1e6d7cc2e"
+    },
+    "xiaoxiaotou": {
+      "name": "小小偷",
+      "file": "xiaoxiaotou.webp",
+      "original": "output/artwork/skill-icons-v3/xiaoxiaotou.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "c5dcc6e74ff884a3a818431bddd349e2ea143ad756f3b21cded2a1256d9eb91d"
+    },
+    "dian24": {
+      "name": "24点",
+      "file": "dian24.webp",
+      "original": "output/artwork/skill-icons-v3/dian24.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "e1fff4ebdf6e3e213008473fd81cec9c7f6541a13e6b32d439ae32ae1d22a003"
+    },
+    "yizhanyangzhan": {
+      "name": "以战养战",
+      "file": "yizhanyangzhan.webp",
+      "original": "output/artwork/skill-icons-v3/yizhanyangzhan.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "e578ed17aef02870730e58a32f8c25d3e8e16e1cd8706f631c799a4941dc4bb0"
+    },
+    "si": {
+      "name": "四",
+      "file": "si.webp",
+      "original": "output/artwork/skill-icons-v3/si.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "7ada392b74d4c9e58c5db6149c56d2f1e95ae0cc52c54ee2cdec9921ee88f816"
+    },
+    "cuidu": {
+      "name": "淬毒",
+      "file": "cuidu.webp",
+      "original": "output/artwork/skill-icons-v3/cuidu.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "e32b90c0b9fa123814334a8ebee6ac3b019e95b99b84ca76fe5df5a2a7d35b21"
+    },
+    "shangjin": {
+      "name": "赏金",
+      "file": "shangjin.webp",
+      "original": "output/artwork/skill-icons-v3/shangjin.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "7e686dba19625c7f91ed946e46643bcd4861296dd3c16ebd103af98b60f9a59a"
+    },
+    "touzi": {
+      "name": "投资",
+      "file": "touzi.webp",
+      "original": "output/artwork/skill-icons-v3/touzi.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "718bd7d31ce439bcc473df23af2de568777b61c758634c6bca92128da7a3a7a1"
+    },
+    "wudi": {
+      "name": "无敌",
+      "file": "wudi.webp",
+      "original": "output/artwork/skill-icons-v3/wudi.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "cd316f75ffd0130716e60599b554c67fd5911a33cf71f6fb5e02aa2a6cce6163"
+    },
+    "yingneng": {
+      "name": "盈能",
+      "file": "yingneng.webp",
+      "original": "output/artwork/skill-icons-v3/yingneng.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "fe0901ce58ae6c10372456cc08faf1658854decd11332c70bdc53d06fc20517b"
+    },
+    "jiubaK": {
+      "name": "98K",
+      "file": "jiubaK.webp",
+      "original": "output/artwork/skill-icons-v3/jiubaK.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "3ff9a00529fdc40fba3064716904990a1836815efea72ca7e9d6e95de28cbb61"
+    },
+    "qianghua": {
+      "name": "强化",
+      "file": "qianghua.webp",
+      "original": "output/artwork/skill-icons-v3/qianghua.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "ace43f847a46c9624b5cfe9f04d6fc516b6454e94571587431619fb5f811aa9a"
+    },
+    "bing": {
+      "name": "冰！",
+      "file": "bing.webp",
+      "original": "output/artwork/skill-icons-v3/bing.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "c49e294e3a99503051263e7b6931a19da4e901458f417962a7b966fb16b757df"
+    },
+    "qibu": {
+      "name": "七步",
+      "file": "qibu.webp",
+      "original": "output/artwork/skill-icons-v3/qibu.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "2bde5557d547a71ef7be215b2c6596a6a516aab31bff302db294a98aa322cc81"
+    },
+    "shuangbei": {
+      "name": "双倍圣水",
+      "file": "shuangbei.webp",
+      "original": "output/artwork/skill-icons-v3/shuangbei.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "9aeefd48ac02cc7995af30a7929741fc7c27fd52199416ca833e5ab81f5a670d"
+    },
+    "gongping": {
+      "name": "公平正义",
+      "file": "gongping.webp",
+      "original": "output/artwork/skill-icons-v3/gongping.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "7a054146c84f2e188b1f796fbe5a1adf584cd8cbd38f65e53a35bae341f58be8"
+    },
+    "ba": {
+      "name": "八",
+      "file": "ba.webp",
+      "original": "output/artwork/skill-icons-v3/ba.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "ec5a8b8960c8c7712708870edff5bd0f7b279ab35141c7a02df5641875bd43f5"
+    },
+    "huxi": {
+      "name": "呼吸回血",
+      "file": "huxi.webp",
+      "original": "output/artwork/skill-icons-v3/huxi.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "3157bc0c9de845e4ab21b820a8e0fbc8e4c2fe11ab4c16dc108471bcb2acdc53"
+    },
+    "jijiu": {
+      "name": "急救箱",
+      "file": "jijiu.webp",
+      "original": "output/artwork/skill-icons-v3/jijiu.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "82273bc12f4f67dc3c9c2ec4838f59bc1ed065156b851f3b0a099ef48e81b16f"
+    },
+    "duming": {
+      "name": "赌命！",
+      "file": "duming.webp",
+      "original": "output/artwork/skill-icons-v3/duming.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "cde2284633ed66f7a634b8874bb9a4c2c8be7e98dd119bc0075da79cbe46c4c5"
+    },
+    "youli": {
+      "name": "尤里",
+      "file": "youli.webp",
+      "original": "output/artwork/skill-icons-v3/youli.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "55c5f0a819afe9e89feffaf9dc767497e5aa0989aee26dcfa5ea70b2ea82478d"
+    },
+    "yuandu": {
+      "name": "元毒九泉",
+      "file": "yuandu.webp",
+      "original": "output/artwork/skill-icons-v3/yuandu.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "f3d6037fc4f7ba204d2bdb543f34f912273b44dc8d6329e172d10f719f55facf"
+    },
+    "jidao": {
+      "name": "极盗",
+      "file": "jidao.webp",
+      "original": "output/artwork/skill-icons-v3/jidao.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "1ceee1f52c4fb60ce6c431322637144cc46dc743912ca94ff57228013d36ef89"
+    },
+    "bishi": {
+      "name": "鄙视",
+      "file": "bishi.webp",
+      "original": "output/artwork/skill-icons-v3/bishi.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "9baa219d877a35a5eb9c1ddaddc5a90399fd74321f9fdeed0b4f7fe8788e965d"
+    },
+    "shipo": {
+      "name": "识破",
+      "file": "shipo.webp",
+      "original": "output/artwork/skill-icons-v3/shipo.png",
+      "sourceWidth": 1254,
+      "sourceHeight": 1254,
+      "sha256": "7b608492cb4a1b8f2ea951751b302c95a86abaf896abfeb5e9476ccab520745a"
+    }
+  }
+}

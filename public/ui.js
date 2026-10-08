@@ -29,9 +29,9 @@ var handSVG = (() => {
   };
 })();
 
-// 40 张独立构图的游戏插画，按技能表顺序映射到 8×5 图集。
+// 40 张按名称和真实效果逐张生成的插画，每个技能读取自己的完整图片。
 const SKILL_ART = (() => {
-  const atlas = new URL('assets/skills/skill-atlas-v2.png', document.currentScript.src).href;
+  const directory = new URL('assets/skills/individual-v3/', document.currentScript.src);
   const entries = [
     ['danxiao','energy'], ['jinghua','heal'], ['jiaren','summon'], ['jiarenqh','summon'],
     ['xiao','energy'], ['quan','attack'], ['yi','digit'], ['tao','heal'],
@@ -45,10 +45,9 @@ const SKILL_ART = (() => {
     ['yuandu','attack'], ['jidao','attack'], ['bishi','control'], ['shipo','control']
   ];
   const out = {};
-  entries.forEach(([id, theme], i) => {
-    // 新版图集为完整 8×5 等分网格；每格内缩 3px 避免网格边线。
-    const x = (i % 8) * (1586 / 8) + 3, y = Math.floor(i / 8) * (992 / 5) + 3;
-    out[id] = { theme, svg: `<svg class="card-svg" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><svg width="100" height="100" viewBox="${x} ${y} 192.25 192.4" overflow="hidden" preserveAspectRatio="none"><image href="${esc(atlas)}" width="1586" height="992"/></svg></svg>` };
+  entries.forEach(([id, theme]) => {
+    const source = new URL(id + '.webp', directory).href;
+    out[id] = { theme, svg: `<svg class="card-svg" viewBox="0 0 512 512" preserveAspectRatio="xMidYMid meet" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><image href="${esc(source)}" width="512" height="512"/></svg>` };
   });
   out._def = out.qianghua;
   return out;

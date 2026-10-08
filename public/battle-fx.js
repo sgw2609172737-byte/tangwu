@@ -1,5 +1,5 @@
 'use strict';
-// 演出只消费引擎事件，不参与结算。出牌演出独立开关，每张卡2秒。
+// 演出只消费引擎事件，不参与结算。出牌演出独立开关，每张卡1.2秒。
 window.TW_FX = (() => {
   const media = matchMedia('(prefers-reduced-motion: reduce)');
   let userReduced = false;
@@ -42,7 +42,7 @@ window.TW_FX = (() => {
       castButton.textContent='出牌：'+(cinematic&&!reduced()?'开':'关');
       castButton.setAttribute('aria-pressed',String(cinematic&&!reduced()));
       castButton.disabled=reduced();
-      castButton.title=reduced()?'减少动画时不播放出牌演出':'切换两秒出牌演出';
+      castButton.title=reduced()?'减少动画时不播放出牌演出':'切换1.2秒出牌演出';
     }
   }
   const point = (el) => { const r = el.getBoundingClientRect(); return { x:r.left+r.width/2, y:r.top+r.height/2, width:r.width }; };
@@ -71,7 +71,7 @@ window.TW_FX = (() => {
     const defensive = ['heal','energy','shield','summon','digit'].includes(type);
     const at = event.kind === 'shield-break' || defensive ? source : target;
     if (event.kind === 'shield-break') { burst('shield', at, 440); layer.lastElementChild.classList.add('effect-shatter'); return 440; }
-    const duration = 2000;
+    const duration = 1200;
     const entry=Object.entries(catalog).flatMap(([digit,list])=>list.map(skill=>({...skill,digit}))).find(s=>s.id===event.skillId);
     const info = entry;
     const name = info?.name || event.skillId;
@@ -119,7 +119,7 @@ window.TW_FX = (() => {
     setBusy(true);
     const duration=play(event);
     if (duration) timer=setTimeout(()=>{
-      // End on the same 2s clock as input pacing, rather than a later compositor frame.
+      // End on the same 1.2s clock as input pacing and result presentation.
       if(layer){layer.getAnimations({subtree:true}).forEach(animation=>animation.cancel());layer.replaceChildren();}
       drain();
     },duration); else drain();

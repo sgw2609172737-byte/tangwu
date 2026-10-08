@@ -26,3 +26,4 @@ __pycache__/
 /android/build/
 /android/app/src/main/assets/site/
 /output/android/
+/output/artwork/
