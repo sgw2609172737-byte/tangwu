@@ -37,9 +37,9 @@ public final class MainActivity extends Activity {
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.rgb(16, 24, 39));
+        root.setBackgroundColor(Color.rgb(41, 39, 53));
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.rgb(16, 24, 39));
+        webView.setBackgroundColor(Color.rgb(41, 39, 53));
         root.addView(webView, new FrameLayout.LayoutParams(-1, -1));
         setContentView(root);
         if (Build.VERSION.SDK_INT >= 30) {

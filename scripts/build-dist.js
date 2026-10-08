@@ -5,7 +5,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const dist = path.join(root, 'dist');
 fs.mkdirSync(dist, { recursive:true });
-for (const name of ['local.html','artbook.html','rules.html','ui.js','local.js','style.css','home.css','refinement.css','ranked.css','rank-ui.js','training-ui.js','training.css','home.js','battle-fx.js','ai-worker.js','assets','favicon.svg']) {
+for (const name of ['local.html','artbook.html','rules.html','ui.js','local.js','style.css','home.css','refinement.css','ranked.css','rank-ui.js','training-ui.js','training.css','home.js','battle-fx.js','ai-worker.js','assets','favicon.svg','liquid-glass.css','glass-controls.js','glass-material.js','licenses']) {
   const source = path.join(root, 'public', name);
   if (fs.existsSync(source)) fs.cpSync(source, path.join(dist, name), { recursive:true });
 }

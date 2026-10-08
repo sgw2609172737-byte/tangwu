@@ -1,7 +1,7 @@
 'use strict';
 // Local AI and server PvP use the same rating rules and separate profiles.
 (function () {
-  const tiers=[{name:'青铜',min:0},{name:'白银',min:1100},{name:'黄金',min:1250},{name:'铂金',min:1450},{name:'钻石',min:1650},{name:'大师',min:1850},{name:'宗师',min:2050}];
+  const tiers=[{name:'青铜',min:0},{name:'白银',min:1100},{name:'黄金',min:1250},{name:'铂金',min:1450},{name:'钻石',min:1650},{name:'大师',min:1850},{name:'宗师',min:2050},{name:'超影',min:3000}];
   function profile(name='你') { return {name,rating:1000,games:0,wins:0,losses:0,draws:0,best:1000,history:[]}; }
   function tier(rating) { return [...tiers].reverse().find(t=>rating>=t.min) || tiers[0]; }
   function progress(p) {
